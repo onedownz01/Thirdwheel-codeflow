@@ -1,0 +1,312 @@
+from __future__ import annotations
+
+import asyncio
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+
+from .ai.fix_suggester import suggest_fix
+from .models.schema import (
+    ApiEnvelope,
+    FixRequest,
+    ParseRequest,
+    ParsedRepo,
+    SCHEMA_VERSION,
+    TraceMode,
+    TraceSession,
+    TraceStartRequest,
+)
+from .parser.ast_parser import parse_repository
+from .parser.github_fetcher import fetch_repo
+from .services.intent_fusion import rank_intents, update_occurrence_stats
+from .services.metadata_store import create_metadata_store
+from .services.otel import get_otel_state, setup_otel
+from .services.trace_context import is_otel_enabled, new_span_id, new_trace_id, parse_traceparent
+from .tracer.simulator import run_simulated_trace
+from .tracer.websocket_emitter import WSEmitter
+
+app = FastAPI(title="CodeFlow API", version=SCHEMA_VERSION)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+setup_otel(app)
+
+repo_cache: dict[str, ParsedRepo] = {}
+trace_sessions: dict[str, TraceSession] = {}
+pending_trace_requests: dict[str, dict[str, Any]] = {}
+metadata_store = create_metadata_store()
+
+
+
+def envelope(data: Any = None, success: bool = True, error: str | None = None) -> ApiEnvelope:
+    return ApiEnvelope(schema_version=SCHEMA_VERSION, success=success, error=error, data=data)
+
+
+async def _send_ws_error(emitter: WSEmitter, session_id: str, error: str) -> None:
+    await emitter.emit(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "session_id": session_id,
+            "timestamp_ms": 0,
+            "type": "trace_error",
+            "error": error,
+        }
+    )
+
+
+@app.get("/health")
+async def health() -> ApiEnvelope:
+    return envelope(
+        {
+            "status": "ok",
+            "schema_version": SCHEMA_VERSION,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "otel": get_otel_state(),
+        }
+    )
+
+
+@app.get("/telemetry/status")
+async def telemetry_status() -> ApiEnvelope:
+    return envelope({"otel": get_otel_state(), "runtime_mode": "lane_a+lane_b_ready"})
+
+
+@app.post("/parse")
+async def parse_repo(req: ParseRequest) -> ApiEnvelope:
+    key = req.repo.lower().strip()
+    if key in repo_cache:
+        return envelope(repo_cache[key].model_dump())
+
+    try:
+        contents, branch = await fetch_repo(req.repo, req.token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"GitHub fetch failed: {exc}") from exc
+
+    if not contents:
+        raise HTTPException(status_code=400, detail="No eligible code files discovered")
+
+    parsed = parse_repository(req.repo, branch, contents)
+    if not parsed.functions:
+        raise HTTPException(status_code=400, detail="No functions parsed from repository")
+
+    repo_cache[key] = parsed
+    await metadata_store.upsert_intents(key, parsed.intents)
+    return envelope(parsed.model_dump())
+
+
+@app.get("/intents")
+async def get_intents(repo: str) -> ApiEnvelope:
+    key = repo.lower().strip()
+    parsed = repo_cache.get(key)
+
+    if parsed:
+        ranked = rank_intents(parsed.intents)
+        return envelope(
+            {
+                "repo": parsed.repo,
+                "branch": parsed.branch,
+                "count": len(ranked),
+                "intents": [intent.model_dump() for intent in ranked],
+                "source": "cache",
+            }
+        )
+
+    stored = await metadata_store.get_intents(key)
+    if not stored:
+        raise HTTPException(status_code=404, detail="Repository is not parsed. Call /parse first.")
+
+    ranked = rank_intents(stored)
+    return envelope(
+        {
+            "repo": key,
+            "branch": "unknown",
+            "count": len(ranked),
+            "intents": [intent.model_dump() for intent in ranked],
+            "source": "metadata_store",
+        }
+    )
+
+
+@app.get("/occurrences")
+async def get_occurrences(repo: str, intent_id: str | None = None, limit: int = 100) -> ApiEnvelope:
+    rows = await metadata_store.list_occurrences(repo=repo, intent_id=intent_id, limit=max(1, min(limit, 1000)))
+    return envelope(
+        {
+            "repo": repo,
+            "intent_id": intent_id,
+            "count": len(rows),
+            "occurrences": [r.model_dump() for r in rows],
+        }
+    )
+
+
+@app.post("/trace/start")
+async def trace_start(req: TraceStartRequest, request: Request) -> ApiEnvelope:
+    key = req.repo.lower().strip()
+    parsed = repo_cache.get(key)
+    if not parsed:
+        raise HTTPException(status_code=404, detail="Repository is not parsed. Call /parse first.")
+
+    intent = next((i for i in parsed.intents if i.id == req.intent_id), None)
+    if not intent:
+        raise HTTPException(status_code=404, detail=f"Intent '{req.intent_id}' not found")
+
+    incoming_ctx = parse_traceparent(request.headers.get("traceparent"))
+    trace_id = incoming_ctx.trace_id if incoming_ctx else new_trace_id()
+    parent_span_id = incoming_ctx.parent_span_id if incoming_ctx else None
+    root_span_id = new_span_id()
+
+    session_id = str(uuid.uuid4())
+    session_mode = req.mode
+    warnings: list[str] = []
+
+    if req.mode == TraceMode.OTel and not is_otel_enabled():
+        session_mode = TraceMode.SIMULATION
+        warnings.append("OTel mode requested but OTEL_EXPORTER_OTLP_ENDPOINT is unset; using simulation")
+
+    session = TraceSession(
+        session_id=session_id,
+        intent_id=intent.id,
+        intent_label=intent.label,
+        trace_mode=session_mode,
+        trace_id=trace_id,
+        root_span_id=root_span_id,
+        parent_span_id=parent_span_id,
+        status="queued",
+    )
+
+    trace_sessions[session_id] = session
+    pending_trace_requests[session_id] = {
+        "repo": key,
+        "intent_id": intent.id,
+        "mode": session_mode,
+        "simulate_error_at_step": req.simulate_error_at_step,
+        "warnings": warnings,
+    }
+
+    return envelope(
+        {
+            "session_id": session_id,
+            "trace_id": trace_id,
+            "root_span_id": root_span_id,
+            "parent_span_id": parent_span_id,
+            "ws_path": f"/ws/trace/{session_id}",
+            "mode": session_mode,
+            "warnings": warnings,
+            "simulate_error_at_step": req.simulate_error_at_step,
+        }
+    )
+
+
+@app.get("/trace/{session_id}")
+async def trace_summary(session_id: str) -> ApiEnvelope:
+    session = trace_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Trace session not found")
+
+    event_count = len(session.events)
+    error_count = len([e for e in session.events if e.event_type == "error"])
+
+    return envelope(
+        {
+            "session": session.model_dump(),
+            "event_count": event_count,
+            "error_count": error_count,
+        }
+    )
+
+
+@app.post("/fix")
+async def get_fix(req: FixRequest) -> ApiEnvelope:
+    suggestion = await suggest_fix(req)
+    return envelope(suggestion.model_dump())
+
+
+@app.delete("/cache/{repo:path}")
+async def clear_cache(repo: str) -> ApiEnvelope:
+    repo_cache.pop(repo.lower(), None)
+    return envelope({"cleared": True, "repo": repo})
+
+
+@app.websocket("/ws/trace/{session_id}")
+async def trace_websocket(websocket: WebSocket, session_id: str) -> None:
+    await websocket.accept()
+    emitter = WSEmitter(websocket)
+
+    request = pending_trace_requests.get(session_id)
+    session = trace_sessions.get(session_id)
+
+    if not request or not session:
+        await _send_ws_error(emitter, session_id, "No pending trace request for this session.")
+        await websocket.close(code=1008)
+        return
+
+    key = request["repo"]
+    intent_id = request["intent_id"]
+    parsed = repo_cache.get(key)
+    if not parsed:
+        await _send_ws_error(emitter, session_id, "Repository cache not available.")
+        await websocket.close(code=1008)
+        return
+
+    intent = next((i for i in parsed.intents if i.id == intent_id), None)
+    if not intent:
+        await _send_ws_error(emitter, session_id, "Intent no longer present in parsed repo.")
+        await websocket.close(code=1008)
+        return
+
+    warnings = request.get("warnings") or []
+    for w in warnings:
+        await emitter.emit(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "session_id": session_id,
+                "timestamp_ms": 0,
+                "type": "trace_warning",
+                "warning": w,
+            }
+        )
+
+    try:
+        occurrence = await run_simulated_trace(
+            parsed,
+            intent,
+            session,
+            emitter.emit,
+            simulate_error_at_step=request.get("simulate_error_at_step"),
+            parent_span_id=session.parent_span_id,
+        )
+        await metadata_store.save_occurrence(occurrence)
+
+        updated_intent = update_occurrence_stats(intent, session)
+        for idx, existing in enumerate(parsed.intents):
+            if existing.id == updated_intent.id:
+                parsed.intents[idx] = updated_intent
+                break
+        await metadata_store.upsert_intents(key, parsed.intents)
+
+        pending_trace_requests.pop(session_id, None)
+        await asyncio.sleep(0.1)
+    except WebSocketDisconnect:
+        return
+    except Exception as exc:
+        session.status = "error"
+        await _send_ws_error(emitter, session_id, str(exc))
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
