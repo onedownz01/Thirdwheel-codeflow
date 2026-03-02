@@ -9,20 +9,56 @@ import type { TraceHeaders } from './useTraceContext';
 
 const API_BASE = 'http://127.0.0.1:8000';
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
-    ...init,
-  });
-
-  const body = (await res.json()) as ApiEnvelope<T>;
-  if (!res.ok || !body.success) {
-    throw new Error(body.error || `Request failed for ${path}`);
+function printable(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
-  return body.data;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      },
+      ...init,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : printable(err);
+    throw new Error(`Network error for ${path}: ${reason}`);
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = null;
+  }
+
+  const body = parsed as ApiEnvelope<T> | { detail?: string } | null;
+  const detail = body && typeof body === 'object' && 'detail' in body ? printable(body.detail) : '';
+  const envelopeError =
+    body && typeof body === 'object' && 'error' in body
+      ? printable((body as ApiEnvelope<T>).error || '')
+      : '';
+  const okEnvelope =
+    body && typeof body === 'object' && 'success' in body
+      ? Boolean((body as ApiEnvelope<T>).success)
+      : res.ok;
+
+  if (!res.ok || !okEnvelope) {
+    throw new Error(detail || envelopeError || `Request failed for ${path}`);
+  }
+  if (!body || typeof body !== 'object' || !('data' in body)) {
+    throw new Error(`Invalid API response for ${path}`);
+  }
+  return (body as ApiEnvelope<T>).data;
 }
 
 export function useApi() {

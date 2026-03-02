@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai.fix_suggester import suggest_fix
@@ -64,6 +66,31 @@ async def _send_ws_error(emitter: WSEmitter, session_id: str, error: str) -> Non
     )
 
 
+def _normalize_repo_input(repo: str) -> str:
+    raw = repo.strip()
+    if raw.endswith(".git"):
+        raw = raw[:-4]
+    m = re.search(r"github\.com[:/]+([^/]+)/([^/]+?)(?:/)?$", raw, re.IGNORECASE)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return raw
+
+
+def _coerce_parse_request(payload: Any) -> ParseRequest:
+    candidate = payload
+    if isinstance(candidate, str):
+        try:
+            candidate = json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid JSON string body: {exc}") from exc
+    if not isinstance(candidate, dict):
+        raise HTTPException(status_code=422, detail="Request body must be an object with 'repo'.")
+    try:
+        return ParseRequest.model_validate(candidate)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.get("/health")
 async def health() -> ApiEnvelope:
     return envelope(
@@ -82,13 +109,15 @@ async def telemetry_status() -> ApiEnvelope:
 
 
 @app.post("/parse")
-async def parse_repo(req: ParseRequest) -> ApiEnvelope:
-    key = req.repo.lower().strip()
+async def parse_repo(payload: Any = Body(...)) -> ApiEnvelope:
+    req = _coerce_parse_request(payload)
+    normalized_repo = _normalize_repo_input(req.repo)
+    key = normalized_repo.lower().strip()
     if key in repo_cache:
         return envelope(repo_cache[key].model_dump())
 
     try:
-        contents, branch = await fetch_repo(req.repo, req.token)
+        contents, branch = await fetch_repo(normalized_repo, req.token)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
@@ -97,7 +126,7 @@ async def parse_repo(req: ParseRequest) -> ApiEnvelope:
     if not contents:
         raise HTTPException(status_code=400, detail="No eligible code files discovered")
 
-    parsed = parse_repository(req.repo, branch, contents)
+    parsed = parse_repository(normalized_repo, branch, contents)
     if not parsed.functions:
         raise HTTPException(status_code=400, detail="No functions parsed from repository")
 
@@ -108,7 +137,7 @@ async def parse_repo(req: ParseRequest) -> ApiEnvelope:
 
 @app.get("/intents")
 async def get_intents(repo: str) -> ApiEnvelope:
-    key = repo.lower().strip()
+    key = _normalize_repo_input(repo).lower().strip()
     parsed = repo_cache.get(key)
 
     if parsed:
@@ -141,10 +170,13 @@ async def get_intents(repo: str) -> ApiEnvelope:
 
 @app.get("/occurrences")
 async def get_occurrences(repo: str, intent_id: str | None = None, limit: int = 100) -> ApiEnvelope:
-    rows = await metadata_store.list_occurrences(repo=repo, intent_id=intent_id, limit=max(1, min(limit, 1000)))
+    normalized_repo = _normalize_repo_input(repo)
+    rows = await metadata_store.list_occurrences(
+        repo=normalized_repo, intent_id=intent_id, limit=max(1, min(limit, 1000))
+    )
     return envelope(
         {
-            "repo": repo,
+            "repo": normalized_repo,
             "intent_id": intent_id,
             "count": len(rows),
             "occurrences": [r.model_dump() for r in rows],
@@ -154,7 +186,8 @@ async def get_occurrences(repo: str, intent_id: str | None = None, limit: int = 
 
 @app.post("/trace/start")
 async def trace_start(req: TraceStartRequest, request: Request) -> ApiEnvelope:
-    key = req.repo.lower().strip()
+    normalized_repo = _normalize_repo_input(req.repo)
+    key = normalized_repo.lower().strip()
     parsed = repo_cache.get(key)
     if not parsed:
         raise HTTPException(status_code=404, detail="Repository is not parsed. Call /parse first.")
@@ -236,8 +269,9 @@ async def get_fix(req: FixRequest) -> ApiEnvelope:
 
 @app.delete("/cache/{repo:path}")
 async def clear_cache(repo: str) -> ApiEnvelope:
-    repo_cache.pop(repo.lower(), None)
-    return envelope({"cleared": True, "repo": repo})
+    normalized_repo = _normalize_repo_input(repo)
+    repo_cache.pop(normalized_repo.lower(), None)
+    return envelope({"cleared": True, "repo": normalized_repo})
 
 
 @app.websocket("/ws/trace/{session_id}")

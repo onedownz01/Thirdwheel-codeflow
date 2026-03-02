@@ -9,6 +9,7 @@ import type {
 
 interface FlowStore {
   repo: ParsedRepo | null;
+  repoHistory: string[];
   intents: Intent[];
   isLoading: boolean;
   loadingStep: string;
@@ -32,6 +33,7 @@ interface FlowStore {
   isFixLoading: boolean;
 
   setRepo: (repo: ParsedRepo) => void;
+  addRepoHistory: (repoName: string) => void;
   setIntents: (intents: Intent[]) => void;
   setLoading: (loading: boolean, step?: string) => void;
   setError: (error: string | null) => void;
@@ -99,6 +101,10 @@ function replayBlockStates(repo: ParsedRepo, activeIntent: Intent | null, traceE
 
 export const useFlowStore = create<FlowStore>((set, get) => ({
   repo: null,
+  repoHistory:
+    typeof window !== 'undefined'
+      ? JSON.parse(window.localStorage.getItem('codeflow_repo_history') || '[]')
+      : [],
   intents: [],
   isLoading: false,
   loadingStep: '',
@@ -127,6 +133,15 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       intents: repo.intents,
       blockStates: buildInitialBlockStates(repo, null),
       error: null,
+    }),
+
+  addRepoHistory: (repoName) =>
+    set((state) => {
+      const next = [repoName, ...state.repoHistory.filter((r) => r !== repoName)].slice(0, 20);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('codeflow_repo_history', JSON.stringify(next));
+      }
+      return { repoHistory: next };
     }),
 
   setIntents: (intents) => set({ intents }),

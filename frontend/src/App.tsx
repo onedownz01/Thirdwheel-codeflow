@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlowCanvas } from './components/FlowCanvas/FlowCanvas';
 import { IntentPanel } from './components/IntentPanel/IntentPanel';
+import { RepoHistoryPanel } from './components/RepoHistoryPanel';
 import { TopBar } from './components/TopBar/TopBar';
 import { TracePanel } from './components/TracePanel/TracePanel';
 import { useApi } from './hooks/useApi';
@@ -9,6 +10,25 @@ import { useTraceSocket } from './hooks/useWebSocket';
 import { useFlowStore } from './store/flowStore';
 import type { Intent } from './types';
 
+function normalizeRepoInput(input: string): string {
+  const raw = input.trim().replace(/\.git$/i, '');
+  const match = raw.match(/github\.com[:/]+([^/]+)\/([^/]+?)(?:\/)?$/i);
+  if (match) {
+    return `${match[1]}/${match[2]}`;
+  }
+  return raw;
+}
+
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 function App() {
   const api = useApi();
   const socket = useTraceSocket();
@@ -16,6 +36,7 @@ function App() {
 
   const {
     repo,
+    repoHistory,
     intents,
     activeIntent,
     traceEvents,
@@ -28,6 +49,7 @@ function App() {
     setLoading,
     setError,
     startTrace,
+    addRepoHistory,
     resetTrace,
     requestFitView,
     togglePlayback,
@@ -43,21 +65,23 @@ function App() {
     async (repoName: string) => {
       try {
         setLoading(true, 'Fetching + parsing repository');
-        setRepoInput(repoName);
-        const parsed = await api.parseRepo(repoName, undefined, traceContext.newHeaders());
+        const normalized = normalizeRepoInput(repoName);
+        setRepoInput(normalized);
+        const parsed = await api.parseRepo(normalized, undefined, traceContext.newHeaders());
         setRepo(parsed);
+        addRepoHistory(parsed.repo);
 
         setLoading(true, 'Ranking intents');
-        const ranked = await api.getIntents(repoName);
+        const ranked = await api.getIntents(normalized);
         setIntents(ranked.intents);
 
         setLoading(false, 'Ready');
       } catch (err) {
-        setError(String(err));
+        setError(toErrorMessage(err));
         setLoading(false, '');
       }
     },
-    [api, setError, setIntents, setLoading, setRepo, traceContext]
+    [addRepoHistory, api, setError, setIntents, setLoading, setRepo, traceContext]
   );
 
   const runIntent = useCallback(
@@ -74,7 +98,7 @@ function App() {
         startTrace(intent, started.session_id, started.trace_id);
         socket.connect(started.ws_path);
       } catch (err) {
-        setError(String(err));
+        setError(toErrorMessage(err));
       }
     },
     [api, repo, setError, simulateError, socket, startTrace, traceContext, traceMode]
@@ -108,7 +132,7 @@ function App() {
       const fix = await api.getFix(payload);
       setFixSuggestion(fix);
     } catch (err) {
-      setError(String(err));
+      setError(toErrorMessage(err));
     } finally {
       setFixLoading(false);
     }
@@ -148,12 +172,15 @@ function App() {
         onModeChange={setTraceMode}
       />
       <div className="app-body">
-        <IntentPanel intents={intents} activeIntentId={activeIntent?.id} onRunIntent={runIntent} />
+        <RepoHistoryPanel repos={repoHistory} activeRepo={repo?.repo} onSelectRepo={parseRepo} />
         <main className="main-panel">
           {error && <div className="error-banner">{error}</div>}
           <FlowCanvas />
         </main>
-        <TracePanel onRequestFix={requestFix} />
+        <aside className="right-panel">
+          <IntentPanel intents={intents} activeIntentId={activeIntent?.id} onRunIntent={runIntent} />
+          <TracePanel onRequestFix={requestFix} />
+        </aside>
       </div>
     </div>
   );

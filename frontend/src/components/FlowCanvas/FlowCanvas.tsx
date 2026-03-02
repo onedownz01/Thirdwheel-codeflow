@@ -64,9 +64,11 @@ function FlowCanvasInner() {
       source: e.source,
       target: e.target,
       animated: flowSet.has(e.source) && flowSet.has(e.target),
+      className: flowSet.has(e.source) ? 'edge-active' : 'edge-idle',
       style: {
         stroke: flowSet.has(e.source) ? '#4fb7ff' : '#344054',
         strokeWidth: flowSet.has(e.source) ? 2 : 1,
+        strokeDasharray: flowSet.has(e.source) ? '6 4' : '2 6',
       },
     }));
 

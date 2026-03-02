@@ -30,6 +30,11 @@ npm install
 npm run dev
 ```
 
+### One-Command Local Run (recommended)
+```bash
+./scripts/dev_local.sh
+```
+
 ### Optional Infra (Postgres + OTel Collector)
 ```bash
 cd infra
