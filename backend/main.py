@@ -6,6 +6,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
+from urllib.parse import parse_qs
 
 import httpx
 from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -83,11 +84,31 @@ def _normalize_repo_input(repo: str) -> str:
 
 def _coerce_parse_request(payload: Any) -> ParseRequest:
     candidate = payload
+    if isinstance(candidate, (bytes, bytearray)):
+        candidate = candidate.decode("utf-8", errors="ignore")
     if isinstance(candidate, str):
+        stripped = candidate.strip()
         try:
-            candidate = json.loads(candidate)
+            candidate = json.loads(stripped)
         except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=422, detail=f"Invalid JSON string body: {exc}") from exc
+            parsed_qs = parse_qs(stripped, keep_blank_values=True)
+            if parsed_qs.get("repo"):
+                candidate = {
+                    "repo": parsed_qs["repo"][0],
+                    "token": parsed_qs.get("token", [None])[0],
+                }
+            else:
+                raise HTTPException(status_code=422, detail=f"Invalid JSON string body: {exc}") from exc
+    if isinstance(candidate, dict) and "repo" not in candidate and len(candidate) == 1:
+        # Handles malformed form/body payloads shaped like {'{"repo":"owner/repo"}': ''}
+        only_key = next(iter(candidate.keys()))
+        if isinstance(only_key, str) and only_key.strip().startswith("{"):
+            try:
+                parsed_key = json.loads(only_key.strip())
+                if isinstance(parsed_key, dict):
+                    candidate = parsed_key
+            except json.JSONDecodeError:
+                pass
     if not isinstance(candidate, dict):
         raise HTTPException(status_code=422, detail="Request body must be an object with 'repo'.")
     try:

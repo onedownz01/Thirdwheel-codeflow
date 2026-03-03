@@ -20,14 +20,17 @@ function printable(value: unknown): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const { headers: initHeaders, ...restInit } = init ?? {};
+  const mergedHeaders = {
+    'Content-Type': 'application/json',
+    ...(initHeaders || {}),
+  };
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers || {}),
-      },
-      ...init,
+      ...restInit,
+      headers: mergedHeaders,
     });
   } catch (err) {
     const reason = err instanceof Error ? err.message : printable(err);
