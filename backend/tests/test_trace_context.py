@@ -1,4 +1,9 @@
-from backend.services.trace_context import build_traceparent, new_span_id, new_trace_id, parse_traceparent
+from backend.services.trace_context import (
+    build_traceparent,
+    new_span_id,
+    new_trace_id,
+    parse_traceparent,
+)
 
 
 def test_traceparent_roundtrip():

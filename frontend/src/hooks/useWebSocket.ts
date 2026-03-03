@@ -5,7 +5,7 @@ const WS_BASE = 'ws://127.0.0.1:8000';
 
 export function useTraceSocket() {
   const wsRef = useRef<WebSocket | null>(null);
-  const { applyTraceEvent, completeTrace, setError } = useFlowStore();
+  const { applyTraceEvent, completeTrace, setError, setTraceWarning } = useFlowStore();
 
   const connect = useCallback((wsPath: string) => {
     if (wsRef.current) {
@@ -21,8 +21,7 @@ export function useTraceSocket() {
         if (msg.type === 'trace_event' && msg.event) {
           applyTraceEvent(msg.event);
         } else if (msg.type === 'trace_warning') {
-          // Keep warnings visible without aborting stream.
-          setError(`Trace warning: ${msg.warning || 'unknown warning'}`);
+          setTraceWarning(msg.warning || 'unknown warning');
         } else if (msg.type === 'trace_complete') {
           completeTrace();
         } else if (msg.type === 'trace_error') {
@@ -41,7 +40,7 @@ export function useTraceSocket() {
     ws.onclose = () => {
       wsRef.current = null;
     };
-  }, [applyTraceEvent, completeTrace, setError]);
+  }, [applyTraceEvent, completeTrace, setError, setTraceWarning]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();

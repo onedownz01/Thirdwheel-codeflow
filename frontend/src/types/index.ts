@@ -26,7 +26,9 @@ export interface IntentEvidence {
     | 'router_transition'
     | 'network_mutation'
     | 'backend_route'
-    | 'symbol_heuristic';
+    | 'symbol_heuristic'
+    | 'cli_command'
+    | 'server_action';
   source_file: string;
   line: number;
   symbol: string;

@@ -2,17 +2,31 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable
 
 import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 
-from ..models.schema import EvidenceKind, FunctionType, Intent, IntentEvidence, Param, ParsedFunction
+from ..models.schema import (
+    EvidenceKind,
+    FunctionType,
+    Intent,
+    IntentEvidence,
+    Param,
+    ParsedFunction,
+)
 
 PY_LANGUAGE = Language(tspython.language())
 
 ROUTE_DECORATOR_PATTERN = re.compile(
     r"@(app|router|bp)\.(get|post|put|delete|patch|options|head)\s*\(([^)]*)\)",
+    re.IGNORECASE,
+)
+CLI_DECORATOR_PATTERN = re.compile(
+    r"@(?:\w+\.)?(?:command|cli\.command)\s*\(([^)]*)\)",
+    re.IGNORECASE,
+)
+ARGPARSE_SUBPARSER_PATTERN = re.compile(
+    r"\.add_parser\(\s*['\"`]([^'\"`]+)['\"`]",
     re.IGNORECASE,
 )
 
@@ -34,11 +48,15 @@ def parse_python_file(path: str, content: str) -> tuple[list[ParsedFunction], li
                 route_intent = _build_route_intent(fn, lines)
                 if route_intent:
                     intents.append(route_intent)
+                cli_intent = _build_cli_intent(fn, lines)
+                if cli_intent:
+                    intents.append(cli_intent)
 
         for child in node.children:
             walk(child)
 
     walk(tree.root_node)
+    intents.extend(_extract_argparse_intents(path, content))
 
     return functions, intents
 
@@ -193,6 +211,77 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
         confidence=0.88,
         evidence=[evidence],
     )
+
+
+def _build_cli_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
+    decorators = _decorator_lines(fn.line, lines)
+    m = CLI_DECORATOR_PATTERN.search(decorators)
+    if not m:
+        return None
+
+    arg_text = m.group(1) or ""
+    command_name = _route_path_from_args(arg_text)
+    if command_name == "/":
+        command_name = fn.name.replace("_", "-")
+
+    label = f"CLI {command_name}"
+    evidence = IntentEvidence(
+        kind=EvidenceKind.CLI_COMMAND,
+        source_file=fn.file,
+        line=fn.line,
+        symbol=fn.name,
+        excerpt=decorators[:140],
+        weight=0.8,
+    )
+    return Intent(
+        id=f"intent:{fn.file}:{fn.name}:cli:{fn.line}",
+        canonical_id=f"actions.cli.{_slug(command_name)}",
+        label=label,
+        icon="⌨",
+        trigger="cli:command",
+        handler_fn_id=fn.id,
+        source_file=fn.file,
+        group="Actions",
+        status="candidate",
+        confidence=0.8,
+        evidence=[evidence],
+        aliases=[fn.name, command_name],
+    )
+
+
+def _extract_argparse_intents(path: str, content: str) -> list[Intent]:
+    intents: list[Intent] = []
+    for idx, line in enumerate(content.splitlines(), start=1):
+        m = ARGPARSE_SUBPARSER_PATTERN.search(line)
+        if not m:
+            continue
+        command_name = m.group(1).strip()
+        intents.append(
+            Intent(
+                id=f"intent:{path}:argparse:{command_name}:{idx}",
+                canonical_id=f"actions.cli.{_slug(command_name)}",
+                label=f"CLI {command_name}",
+                icon="⌨",
+                trigger="cli:argparse",
+                handler_fn_id=f"{path}:cli_{command_name}:{idx}",
+                source_file=path,
+                group="Actions",
+                status="candidate",
+                confidence=0.64,
+                evidence=[
+                    IntentEvidence(
+                        kind=EvidenceKind.CLI_COMMAND,
+                        source_file=path,
+                        line=idx,
+                        symbol=command_name,
+                        excerpt=line.strip()[:140],
+                        weight=0.64,
+                    )
+                ],
+                aliases=[command_name],
+            )
+        )
+    return intents
 
 
 

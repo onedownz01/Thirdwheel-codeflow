@@ -7,7 +7,15 @@ import uuid
 from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
-from ..models.schema import Intent, IntentOccurrence, ParsedRepo, TraceEvent, TraceEventType, TraceSession
+from ..models.schema import (
+    Intent,
+    IntentOccurrence,
+    ParsedRepo,
+    RuntimeValue,
+    TraceEvent,
+    TraceEventType,
+    TraceSession,
+)
 
 EmitFunc = Callable[[dict], Awaitable[None]]
 
@@ -92,6 +100,7 @@ async def run_simulated_trace(
             parent_span_id=session.root_span_id,
             service_name="codeflow",
             attributes={"function_type": fn.type.value},
+            inputs=_simulated_inputs(fn.params, step_idx),
         )
         sequence += 1
         session.events.append(call_event)
@@ -146,6 +155,7 @@ async def run_simulated_trace(
             parent_span_id=call_event.span_id,
             service_name="codeflow",
             attributes={"function_type": fn.type.value},
+            outputs=_simulated_outputs(fn.params, step_idx),
         )
         sequence += 1
         session.events.append(ret_event)
@@ -209,3 +219,51 @@ def _frame(session_id: str, msg_type: str, payload: dict) -> dict:
 
 def _span_id() -> str:
     return uuid.uuid4().hex[:16]
+
+
+def _simulated_inputs(params, step_idx: int) -> list[RuntimeValue]:
+    values: list[RuntimeValue] = []
+    if params:
+        in_params = [p for p in params if p.direction == "in"][:5]
+        for p in in_params:
+            values.append(
+                RuntimeValue(
+                    name=p.name,
+                    value=_sample_value(p.type, step_idx),
+                    type_name=p.type or "any",
+                    is_sensitive=False,
+                )
+            )
+        if values:
+            return values
+    return [RuntimeValue(name="context", value=f"step_{step_idx}", type_name="str", is_sensitive=False)]
+
+
+def _simulated_outputs(params, step_idx: int) -> list[RuntimeValue]:
+    values: list[RuntimeValue] = []
+    out_params = [p for p in params if p.direction == "out"][:4]
+    for p in out_params:
+        values.append(
+            RuntimeValue(
+                name=p.name,
+                value=_sample_value(p.type, step_idx + 1),
+                type_name=p.type or "any",
+                is_sensitive=False,
+            )
+        )
+    if values:
+        return values
+    return [RuntimeValue(name="result", value=f"ok_{step_idx}", type_name="str", is_sensitive=False)]
+
+
+def _sample_value(type_name: str, seed: int):
+    t = (type_name or "any").lower()
+    if "int" in t or "number" in t:
+        return seed
+    if "bool" in t:
+        return bool(seed % 2)
+    if "dict" in t or "object" in t:
+        return {"step": seed}
+    if "list" in t or "array" in t:
+        return [seed, seed + 1]
+    return f"{t}_value_{seed}"

@@ -4,7 +4,6 @@ from __future__ import annotations
 from ..models.schema import Intent, IntentStatus, TraceSession
 
 
-
 def rank_intents(intents: list[Intent]) -> list[Intent]:
     return sorted(
         intents,

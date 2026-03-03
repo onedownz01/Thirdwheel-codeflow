@@ -35,6 +35,11 @@ npm run dev
 ./scripts/dev_local.sh
 ```
 
+### Environment Bootstrap (recommended first run)
+```bash
+./scripts/bootstrap_env.sh
+```
+
 ### Optional Infra (Postgres + OTel Collector)
 ```bash
 cd infra
@@ -46,6 +51,7 @@ docker compose up -d
 - `GET /intents?repo=...`
 - `GET /occurrences?repo=...&intent_id=...`
 - `POST /trace/start`
+- `POST /trace/ingest`
 - `GET /trace/{session_id}`
 - `POST /fix`
 - `DELETE /cache/{repo}`
@@ -54,7 +60,8 @@ docker compose up -d
 
 ## Notes
 - Lane A simulation is implemented now.
-- Lane B OpenTelemetry wiring is active when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+- Lane B OpenTelemetry bridge supports ingesting real spans via `POST /trace/ingest`.
+- If `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, OTel sessions still work via manual span ingest and fall back to simulation only when no spans are ingested.
 - AI fix calls are manual and opt-in only.
 - Frontend sends W3C `traceparent` headers for trace correlation.
 
@@ -66,4 +73,9 @@ docker compose up -d
 ## Benchmark Extraction
 ```bash
 python3 scripts/benchmark_extraction.py --repos tiangolo/fastapi expressjs/express
+```
+
+## End-to-End Dry Run
+```bash
+python3 scripts/e2e_dry_run.py --repo tiangolo/fastapi
 ```

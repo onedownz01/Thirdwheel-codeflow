@@ -15,9 +15,11 @@ jobs:
       - name: Install backend deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt pytest
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+      - name: Lint backend
+        run: ruff check backend
       - name: Run backend tests
-        run: pytest backend/tests -q
+        run: python -m pytest -q backend/tests
 
   frontend:
     runs-on: ubuntu-latest
@@ -30,6 +32,10 @@ jobs:
         run: |
           cd frontend
           npm install
+      - name: Lint frontend
+        run: |
+          cd frontend
+          npm run lint
       - name: Build frontend
         run: |
           cd frontend

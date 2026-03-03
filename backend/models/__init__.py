@@ -1,1 +1,1 @@
-from .schema import *
+"""Backend model package."""

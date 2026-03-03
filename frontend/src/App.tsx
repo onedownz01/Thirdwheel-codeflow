@@ -43,11 +43,13 @@ function App() {
     isLoading,
     loadingStep,
     error,
+    traceWarning,
     isFixLoading,
     setRepo,
     setIntents,
     setLoading,
     setError,
+    setTraceWarning,
     startTrace,
     addRepoHistory,
     resetTrace,
@@ -64,6 +66,7 @@ function App() {
   const parseRepo = useCallback(
     async (repoName: string) => {
       try {
+        setTraceWarning(null);
         setLoading(true, 'Fetching + parsing repository');
         const normalized = normalizeRepoInput(repoName);
         setRepoInput(normalized);
@@ -81,13 +84,14 @@ function App() {
         setLoading(false, '');
       }
     },
-    [addRepoHistory, api, setError, setIntents, setLoading, setRepo, traceContext]
+    [addRepoHistory, api, setError, setIntents, setLoading, setRepo, setTraceWarning, traceContext]
   );
 
   const runIntent = useCallback(
     async (intent: Intent) => {
       if (!repo) return;
       try {
+        setTraceWarning(null);
         const started = await api.startTrace(
           repo.repo,
           intent.id,
@@ -101,7 +105,7 @@ function App() {
         setError(toErrorMessage(err));
       }
     },
-    [api, repo, setError, simulateError, socket, startTrace, traceContext, traceMode]
+    [api, repo, setError, setTraceWarning, simulateError, socket, startTrace, traceContext, traceMode]
   );
 
   const requestFix = useCallback(async () => {
@@ -175,6 +179,7 @@ function App() {
         <RepoHistoryPanel repos={repoHistory} activeRepo={repo?.repo} onSelectRepo={parseRepo} />
         <main className="main-panel">
           {error && <div className="error-banner">{error}</div>}
+          {traceWarning && <div className="warning-banner">{traceWarning}</div>}
           <FlowCanvas />
         </main>
         <aside className="right-panel">

@@ -2,7 +2,6 @@ from pathlib import Path
 
 from backend.parser.js_parser import parse_js_file
 
-
 FIXTURE = Path(__file__).parent / 'fixtures' / 'sample_ui.tsx'
 
 

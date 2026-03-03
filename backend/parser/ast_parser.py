@@ -7,7 +7,6 @@ from .js_parser import parse_js_file
 from .python_parser import parse_python_file
 
 
-
 def parse_repository(repo: str, branch: str, contents: dict[str, str]) -> ParsedRepo:
     functions = []
     intents = []

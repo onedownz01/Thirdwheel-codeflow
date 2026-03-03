@@ -14,9 +14,13 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { useFlowStore } from '../../store/flowStore';
 import { FunctionBlock } from './FunctionBlock';
+import type { ParsedRepo } from '../../types';
 
 const nodeTypes = { functionBlock: FunctionBlock };
 const elk = new ELK();
+const LARGE_GRAPH_THRESHOLD = 700;
+const LARGE_GRAPH_NODE_CAP = 480;
+const LARGE_GRAPH_EDGE_CAP = 2200;
 
 async function layoutGraph(nodes: Node[], edges: Edge[]): Promise<Node[]> {
   const graph = {
@@ -51,15 +55,25 @@ function FlowCanvasInner() {
   useEffect(() => {
     if (!repo) return;
 
-    const nextNodes: Node[] = repo.functions.map((fn) => ({
+    const flowSet = new Set(activeIntent?.flow_ids || []);
+    const renderIds = selectRenderableNodeIds(repo, flowSet);
+    const fnById = new Map(repo.functions.map((fn) => [fn.id, fn]));
+    const renderFns = Array.from(renderIds)
+      .map((id) => fnById.get(id))
+      .filter((fn): fn is NonNullable<typeof fn> => Boolean(fn));
+
+    const nextNodes: Node[] = renderFns.map((fn) => ({
       id: fn.id,
       type: 'functionBlock',
       position: { x: 0, y: 0 },
       data: { fn, state: blockStates[fn.id] || { status: 'idle' } },
     }));
 
-    const flowSet = new Set(activeIntent?.flow_ids || []);
-    const nextEdges: Edge[] = repo.edges.map((e) => ({
+    const filteredEdges = repo.edges
+      .filter((e) => renderIds.has(e.source) && renderIds.has(e.target))
+      .slice(0, repo.functions.length > LARGE_GRAPH_THRESHOLD ? LARGE_GRAPH_EDGE_CAP : repo.edges.length);
+
+    const nextEdges: Edge[] = filteredEdges.map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,
@@ -76,7 +90,19 @@ function FlowCanvasInner() {
       setNodes(layoutedNodes);
       setEdges(nextEdges);
     });
-  }, [repo, blockStates, activeIntent, setNodes, setEdges]);
+  }, [repo, activeIntent, setNodes, setEdges]);
+
+  useEffect(() => {
+    setNodes((curr) =>
+      curr.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          state: blockStates[node.id] || { status: 'idle' },
+        },
+      }))
+    );
+  }, [blockStates, setNodes]);
 
   useEffect(() => {
     if (!repo) return;
@@ -89,6 +115,12 @@ function FlowCanvasInner() {
 
   return (
     <div className="canvas-wrap">
+      {repo.functions.length > LARGE_GRAPH_THRESHOLD && (
+        <div className="canvas-hint">
+          Large graph mode: rendering top {Math.min(LARGE_GRAPH_NODE_CAP, repo.functions.length)} nodes.
+          Select an intent to prioritize relevant flow nodes.
+        </div>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -115,6 +147,36 @@ function FlowCanvasInner() {
       </ReactFlow>
     </div>
   );
+}
+
+function selectRenderableNodeIds(repo: ParsedRepo, flowSet: Set<string>): Set<string> {
+  if (repo.functions.length <= LARGE_GRAPH_THRESHOLD) {
+    return new Set(repo.functions.map((fn) => fn.id));
+  }
+
+  const degree = new Map<string, number>();
+  for (const fn of repo.functions) degree.set(fn.id, 0);
+  for (const edge of repo.edges) {
+    degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
+    degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
+  }
+
+  const scored = [...repo.functions].sort((a, b) => {
+    const aBoost = flowSet.has(a.id) ? 1000 : 0;
+    const bBoost = flowSet.has(b.id) ? 1000 : 0;
+    const aType = a.type === 'route' || a.type === 'handler' ? 30 : 0;
+    const bType = b.type === 'route' || b.type === 'handler' ? 30 : 0;
+    const aScore = (degree.get(a.id) || 0) + aBoost + aType;
+    const bScore = (degree.get(b.id) || 0) + bBoost + bType;
+    return bScore - aScore;
+  });
+
+  const selected = new Set<string>([...flowSet]);
+  for (const fn of scored) {
+    if (selected.size >= LARGE_GRAPH_NODE_CAP) break;
+    selected.add(fn.id);
+  }
+  return selected;
 }
 
 export function FlowCanvas() {

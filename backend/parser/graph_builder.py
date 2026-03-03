@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from ..models.schema import Edge, Intent, IntentStatus, ParsedFunction, ParsedRepo
 
 
-
 def build_graph(
     functions: list[ParsedFunction],
     intents: list[Intent],

@@ -6,11 +6,16 @@ import argparse
 import asyncio
 import json
 import statistics
+import sys
 import time
 from pathlib import Path
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from backend.parser.ast_parser import parse_repository
-from backend.parser.github_fetcher import fetch_repo
+from backend.parser.github_fetcher import MAX_FILES, fetch_repo
 
 
 async def benchmark_repo(repo: str, token: str | None = None) -> dict:
@@ -37,7 +42,12 @@ async def main() -> int:
     parser.add_argument('--repos', nargs='+', required=True, help='owner/repo list')
     parser.add_argument('--token', default=None)
     parser.add_argument('--json-out', default='')
+    parser.add_argument('--max-files', type=int, default=MAX_FILES)
     args = parser.parse_args()
+
+    import backend.parser.github_fetcher as github_fetcher
+
+    github_fetcher.MAX_FILES = max(10, min(args.max_files, 1000))
 
     results = []
     for repo in args.repos:

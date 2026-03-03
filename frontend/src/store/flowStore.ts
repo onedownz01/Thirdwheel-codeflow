@@ -14,6 +14,7 @@ interface FlowStore {
   isLoading: boolean;
   loadingStep: string;
   error: string | null;
+  traceWarning: string | null;
 
   activeIntent: Intent | null;
   blockStates: Record<string, BlockState>;
@@ -37,6 +38,7 @@ interface FlowStore {
   setIntents: (intents: Intent[]) => void;
   setLoading: (loading: boolean, step?: string) => void;
   setError: (error: string | null) => void;
+  setTraceWarning: (warning: string | null) => void;
 
   startTrace: (intent: Intent, sessionId: string, traceId: string) => void;
   applyTraceEvent: (event: TraceEvent) => void;
@@ -109,6 +111,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   isLoading: false,
   loadingStep: '',
   error: null,
+  traceWarning: null,
 
   activeIntent: null,
   blockStates: {},
@@ -149,6 +152,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   setLoading: (isLoading, loadingStep = '') => set({ isLoading, loadingStep }),
 
   setError: (error) => set({ error, isLoading: false }),
+  setTraceWarning: (traceWarning) => set({ traceWarning }),
 
   startTrace: (intent, sessionId, traceId) => {
     const { repo } = get();
@@ -167,6 +171,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       totalSteps: 0,
       fixSuggestion: null,
       error: null,
+      traceWarning: null,
     });
   },
 
@@ -235,6 +240,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       traceId: null,
       blockStates: repo ? buildInitialBlockStates(repo, null) : {},
       fixSuggestion: null,
+      traceWarning: null,
     });
   },
 

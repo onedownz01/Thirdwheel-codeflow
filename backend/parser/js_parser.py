@@ -44,8 +44,10 @@ def parse_js_file(path: str, content: str) -> tuple[list[ParsedFunction], list[I
     intents.extend(_extract_content_level_intents(path, content))
 
     for intent in intents:
-        intent.confidence = max(0.2, min(0.99, sum(ev.weight for ev in intent.evidence) / 2.0))
+        intent.confidence = _compute_confidence(intent)
     deduped = _dedupe_intents(intents)
+    for intent in deduped:
+        intent.confidence = _compute_confidence(intent)
     return functions, deduped
 
 
@@ -101,6 +103,18 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
     )
     ui_event_re = re.compile(
         r"\b(onClick|onSubmit|onChange|onPress|onKeyDown|onKeyPress|onDoubleClick)\s*=\s*\{?\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}?",
+        re.IGNORECASE,
+    )
+    server_action_fn_re = re.compile(
+        r"(?:^|\n)\s*(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)\s*\{[^{}]{0,180}['\"]use server['\"]",
+        re.IGNORECASE | re.DOTALL,
+    )
+    server_action_arrow_re = re.compile(
+        r"(?:^|\n)\s*(?:export\s+)?const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{[^{}]{0,180}['\"]use server['\"]",
+        re.IGNORECASE | re.DOTALL,
+    )
+    js_command_re = re.compile(
+        r"\.command\(\s*['\"`]([^'\"`]+)['\"`]",
         re.IGNORECASE,
     )
 
@@ -189,6 +203,67 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
                             symbol=handler,
                             excerpt=line.strip()[:140],
                             weight=0.72,
+                        )
+                    ],
+                    aliases=[handler],
+                )
+            )
+
+        command_match = js_command_re.search(line)
+        if command_match:
+            command_name = command_match.group(1).strip()
+            label = f"CLI {command_name}"
+            intents.append(
+                Intent(
+                    id=f"intent:{path}:cli:{command_name}:{idx}",
+                    canonical_id=f"actions.cli.{_slug(command_name)}",
+                    label=label,
+                    icon="⌨",
+                    trigger="cli:command",
+                    handler_fn_id=f"{path}:{command_name}:0",
+                    source_file=path,
+                    group="Actions",
+                    status="candidate",
+                    confidence=0.66,
+                    evidence=[
+                        IntentEvidence(
+                            kind=EvidenceKind.CLI_COMMAND,
+                            source_file=path,
+                            line=idx,
+                            symbol=command_name,
+                            excerpt=line.strip()[:140],
+                            weight=0.66,
+                        )
+                    ],
+                    aliases=[command_name],
+                )
+            )
+
+    for server_re in (server_action_fn_re, server_action_arrow_re):
+        for match in server_re.finditer(content):
+            handler = match.group(1)
+            line = content[: match.start()].count("\n") + 1
+            label = _humanize(handler)
+            intents.append(
+                Intent(
+                    id=f"intent:{path}:server_action:{handler}:{line}",
+                    canonical_id=f"actions.server.{_slug(label)}",
+                    label=f"Server Action: {label}",
+                    icon="⚙",
+                    trigger="server_action",
+                    handler_fn_id=f"{path}:{handler}:0",
+                    source_file=path,
+                    group="Actions",
+                    status="candidate",
+                    confidence=0.86,
+                    evidence=[
+                        IntentEvidence(
+                            kind=EvidenceKind.SERVER_ACTION,
+                            source_file=path,
+                            line=line,
+                            symbol=handler,
+                            excerpt=match.group(0).splitlines()[0][:140],
+                            weight=0.86,
                         )
                     ],
                     aliases=[handler],
@@ -471,7 +546,7 @@ def _infer_label(node, content: str) -> str | None:
     ctx_start = max(0, node.start_byte - 250)
     ctx_end = min(len(content), node.end_byte + 250)
     ctx = content[ctx_start:ctx_end]
-    m = re.search(r">([A-Za-z][A-Za-z0-9\s\-]{1,40})<", ctx)
+    m = re.search(r">\s*([A-Za-z][A-Za-z0-9\s\-]{1,40})\s*<", ctx)
     return m.group(1).strip() if m else None
 
 
@@ -563,5 +638,32 @@ def _dedupe_intents(intents: list[Intent]) -> list[Intent]:
             continue
         existing.aliases = sorted(set(existing.aliases + intent.aliases + [intent.label]))
         existing.evidence.extend(intent.evidence)
-        existing.confidence = max(existing.confidence, intent.confidence)
+        existing.confidence = _compute_confidence(existing)
     return list(by_key.values())
+
+
+def _compute_confidence(intent: Intent) -> float:
+    if not intent.evidence:
+        return 0.35
+
+    weights = [max(0.0, min(1.0, ev.weight)) for ev in intent.evidence]
+    unique_kinds = len({ev.kind for ev in intent.evidence})
+    strongest = max(weights)
+    average = sum(weights) / len(weights)
+
+    score = max(strongest, average)
+    score += min(0.18, 0.05 * max(0, unique_kinds - 1))
+    score += min(0.08, 0.02 * max(0, len(weights) - 1))
+
+    trigger = (intent.trigger or "").lower()
+    if trigger.startswith("route:"):
+        score += 0.06
+    elif trigger in {a.lower() for a in INTENT_ATTRS}:
+        score += 0.04
+    elif trigger in {"form:action", "server_action"}:
+        score += 0.05
+
+    if trigger.startswith("network:"):
+        score = min(score, 0.84)
+
+    return round(max(0.2, min(0.99, score)), 3)

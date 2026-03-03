@@ -76,3 +76,78 @@ Partially complete / pending:
 
 ## 11) Operating Rule Going Forward
 - This file is the single running logbook and should be updated after each meaningful change, decision, bug, or test result.
+
+## 12) Audit Snapshot (2026-03-03)
+- Scope audited: backend APIs/parsers/tracer/services, frontend app/store/canvas/panels, tests/build, and public repo parse behavior.
+
+What passed:
+- Backend unit tests pass when executed with package path configured:
+  - `PYTHONPATH=. pytest -q backend/tests` -> `6 passed`
+- Frontend build passes:
+  - `npm run build` succeeds.
+- Live parse endpoint works for valid repos:
+  - `POST /parse` for `NousResearch/hermes-agent` returns graph payload.
+  - `POST /parse` for `tiangolo/fastapi` returns rich route intents.
+
+Key findings (pending/bugs):
+1. Confidence scoring bug in JS parser:
+   - In `backend/parser/js_parser.py`, confidence is recomputed as `sum(weights)/2.0`.
+   - This halves single-signal confidence (e.g., route `0.88 -> 0.44`), pushing many intents into `candidate`.
+2. Runtime lane is still simulation-only for block I/O realism:
+   - `backend/tracer/simulator.py` emits deterministic events.
+   - Real runtime capture for function-level inputs/outputs in app code is not implemented.
+3. Frontend trace warning handling currently uses global error banner:
+   - Warnings can look like hard failures in UI state.
+4. Environment consistency issue causing flaky local startup:
+   - `.venv` exists but does not currently have all backend deps installed.
+   - Some commands run with global Python/pytest instead of project env.
+   - `scripts/dev_local.sh` uses `python3` (global), not pinned `.venv/bin/python`, so behavior can differ machine-to-machine.
+5. Validation and UX hardening gaps:
+   - No frontend lint setup (`npm run lint` is placeholder).
+   - No end-to-end integration test for parse->intent click->ws trace->playback.
+   - No performance/scale tests yet for large graphs.
+
+Current benchmark snapshot:
+- `NousResearch/hermes-agent`: ~1107 functions, 1632 edges, 5 intents (backend routes), low confidence due bug above.
+- `tiangolo/fastapi`: 393 functions, 74 edges, 75 intents (all backend route-derived, high confidence).
+
+## 13) Remediation Pass (2026-03-03) - 7 Pending Tracks
+Public benchmark repo selected for dry run:
+- `tiangolo/fastapi` (stable route-heavy baseline with deterministic expected intents).
+
+Implemented in this pass:
+1. Intent confidence bug fixed (critical):
+   - `backend/parser/js_parser.py` no longer halves confidence (`sum/2` removed).
+   - Added confidence aggregation with evidence diversity bonuses.
+2. Dynamic intent extraction expanded:
+   - JS: added `server_action` and JS CLI `.command(...)` intent signals.
+   - Python: added CLI intent extraction from `@...command(...)` and argparse `add_parser(...)`.
+3. Runtime lane B upgraded:
+   - Added `POST /trace/ingest` and span contracts (`IngestedSpan`, `TraceIngestRequest`).
+   - Added `backend/tracer/otel_bridge.py` to convert ingested spans into trace events.
+   - OTel mode now uses ingested spans when present; otherwise warns and falls back to simulation.
+4. Simulated trace debug quality improved:
+   - Simulator now emits synthetic per-block input/output runtime values for better block visibility.
+5. Local runtime stability and env standardization:
+   - Rebuilt `scripts/dev_local.sh` with pinned `.venv` Python, dependency checks, log files, restart supervision.
+   - Added `scripts/bootstrap_env.sh`.
+   - Added `Makefile` for setup/dev/test/lint/build/dry-run commands.
+   - Added `pyproject.toml` (`pytest` pythonpath + `ruff` config).
+6. Quality gates:
+   - Added backend dev deps (`backend/requirements-dev.txt`) and CI lint/test updates.
+   - Frontend lint now runs typecheck (`npm run lint` -> `tsc --noEmit`).
+7. Large-graph performance hardening:
+   - `FlowCanvas` now uses large-graph mode with node/edge caps and degree-based prioritization.
+   - Layout recomputation no longer runs on every trace event; block state updates are incremental.
+
+Dry run result (end-to-end):
+- Command:
+  - `.venv/bin/python scripts/e2e_dry_run.py --repo tiangolo/fastapi --base-url http://127.0.0.1:8000`
+- Outcome: `PASS`
+- Snapshot:
+  - parsed: 393 functions, 74 edges, 75 intents
+  - simulation trace: 4 events
+  - OTel ingest trace: 6 events (ingested spans accepted and streamed)
+
+Validation sample after confidence/extraction fixes:
+- `NousResearch/hermes-agent` now yields 59 intents (was 5 in prior snapshot), including backend route intents and CLI intents.

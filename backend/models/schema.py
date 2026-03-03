@@ -38,6 +38,8 @@ class EvidenceKind(str, Enum):
     NETWORK_MUTATION = "network_mutation"
     BACKEND_ROUTE = "backend_route"
     SYMBOL_HEURISTIC = "symbol_heuristic"
+    CLI_COMMAND = "cli_command"
+    SERVER_ACTION = "server_action"
 
 
 class Param(BaseModel):
@@ -192,6 +194,27 @@ class TraceStartRequest(BaseModel):
     intent_id: str
     mode: TraceMode = TraceMode.SIMULATION
     simulate_error_at_step: Optional[int] = None
+
+
+class IngestedSpan(BaseModel):
+    trace_id: str
+    span_id: str
+    parent_span_id: Optional[str] = None
+    name: str
+    service_name: str = "unknown-service"
+    start_time_ms: float
+    end_time_ms: float
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["ok", "error"] = "ok"
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class TraceIngestRequest(BaseModel):
+    schema_version: str = SCHEMA_VERSION
+    session_id: Optional[str] = None
+    trace_id: str
+    spans: list[IngestedSpan] = Field(default_factory=list)
 
 
 class ParseProgress(BaseModel):

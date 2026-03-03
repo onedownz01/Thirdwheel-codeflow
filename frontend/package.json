@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "echo 'No lint config yet'"
+    "lint": "npm run typecheck"
   },
   "dependencies": {
     "elkjs": "^0.9.3",
