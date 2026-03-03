@@ -1,0 +1,45 @@
+
+> codeflow-frontend@0.1.0 dev
+> vite --host 127.0.0.1 --port 5173
+
+
+  VITE v5.4.21  ready in 130 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+12:35:03 PM [vite] hmr update /src/App.tsx
+
+> codeflow-frontend@0.1.0 dev
+> vite --host 127.0.0.1 --port 5173
+
+
+  VITE v5.4.21  ready in 117 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+
+> codeflow-frontend@0.1.0 dev
+> vite --host 127.0.0.1 --port 5173
+
+
+  VITE v5.4.21  ready in 98 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+12:48:26 PM [vite] hmr update /src/App.tsx
+12:55:19 PM [vite] hmr update /src/components/FlowCanvas/FunctionBlock.tsx
+12:55:59 PM [vite] hmr update /src/components/FlowCanvas/FlowCanvas.tsx
+12:57:31 PM [vite] hmr update /src/styles.css
+1:01:08 PM [vite] hmr update /src/App.tsx, /src/components/TracePanel/TracePanel.tsx, /src/components/FlowCanvas/FlowCanvas.tsx, /src/components/TracePanel/PlaybackScrubber.tsx
+1:01:38 PM [vite] hmr update /src/components/FlowCanvas/FlowCanvas.tsx
+1:02:17 PM [vite] hmr update /src/components/FlowCanvas/FlowCanvas.tsx
+1:04:01 PM [vite] page reload src/main.tsx
+1:04:28 PM [vite] hmr update /src/styles.css
+
+> codeflow-frontend@0.1.0 dev
+> vite --host 127.0.0.1 --port 5173
+
+
+  VITE v5.4.21  ready in 91 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+1:12:48 PM [vite] hmr update /src/components/FlowCanvas/FlowCanvas.tsx
+1:13:11 PM [vite] hmr update /src/styles.css
+1:16:32 PM [vite] hmr update /src/components/FlowCanvas/FunctionBlock.tsx

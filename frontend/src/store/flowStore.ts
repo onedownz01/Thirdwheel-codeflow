@@ -54,9 +54,12 @@ interface FlowStore {
 
 function buildInitialBlockStates(repo: ParsedRepo, activeIntent: Intent | null): Record<string, BlockState> {
   const flowSet = new Set(activeIntent?.flow_ids ?? []);
+  const hasFlowIntersection =
+    flowSet.size === 0 ? false : repo.functions.some((fn) => flowSet.has(fn.id));
   const states: Record<string, BlockState> = {};
   for (const fn of repo.functions) {
-    states[fn.id] = { status: flowSet.size === 0 || flowSet.has(fn.id) ? 'idle' : 'dimmed' };
+    const shouldDim = hasFlowIntersection && !flowSet.has(fn.id);
+    states[fn.id] = { status: shouldDim ? 'dimmed' : 'idle' };
   }
   return states;
 }

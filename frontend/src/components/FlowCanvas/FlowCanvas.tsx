@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import ReactFlow, {
   Background,
@@ -28,9 +28,11 @@ async function layoutGraph(nodes: Node[], edges: Edge[]): Promise<Node[]> {
     layoutOptions: {
       'elk.algorithm': 'layered',
       'elk.direction': 'RIGHT',
-      'elk.edgeRouting': 'ORTHOGONAL',
-      'elk.spacing.nodeNode': '45',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '95',
+      'elk.edgeRouting': 'SPLINES',
+      'elk.spacing.nodeNode': '40',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '90',
+      'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
     },
     children: nodes.map((n) => ({ id: n.id, width: 300, height: 140 })),
     edges: edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
@@ -51,12 +53,27 @@ function FlowCanvasInner() {
   const flow = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const renderIdsRef = useRef<Set<string>>(new Set());
+  const repoKeyRef = useRef<string>('');
+  const layoutRunRef = useRef(0);
 
   useEffect(() => {
-    if (!repo) return;
+    if (!repo) {
+      renderIdsRef.current = new Set();
+      repoKeyRef.current = '';
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
 
     const flowSet = new Set(activeIntent?.flow_ids || []);
     const renderIds = selectRenderableNodeIds(repo, flowSet);
+    const repoKey = `${repo.repo}::${repo.functions.length}::${repo.edges.length}`;
+    const renderChanged = !sameSet(renderIdsRef.current, renderIds);
+    const repoChanged = repoKeyRef.current !== repoKey;
+    renderIdsRef.current = renderIds;
+    repoKeyRef.current = repoKey;
+
     const fnById = new Map(repo.functions.map((fn) => [fn.id, fn]));
     const renderFns = Array.from(renderIds)
       .map((id) => fnById.get(id))
@@ -73,20 +90,16 @@ function FlowCanvasInner() {
       .filter((e) => renderIds.has(e.source) && renderIds.has(e.target))
       .slice(0, repo.functions.length > LARGE_GRAPH_THRESHOLD ? LARGE_GRAPH_EDGE_CAP : repo.edges.length);
 
-    const nextEdges: Edge[] = filteredEdges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      animated: flowSet.has(e.source) && flowSet.has(e.target),
-      className: flowSet.has(e.source) ? 'edge-active' : 'edge-idle',
-      style: {
-        stroke: flowSet.has(e.source) ? '#4fb7ff' : '#344054',
-        strokeWidth: flowSet.has(e.source) ? 2 : 1,
-        strokeDasharray: flowSet.has(e.source) ? '6 4' : '2 6',
-      },
-    }));
+    const nextEdges: Edge[] = styleEdges(filteredEdges, flowSet);
 
+    if (!repoChanged && !renderChanged) {
+      setEdges(nextEdges);
+      return;
+    }
+
+    const runId = ++layoutRunRef.current;
     layoutGraph(nextNodes, nextEdges).then((layoutedNodes) => {
+      if (runId !== layoutRunRef.current) return;
       setNodes(layoutedNodes);
       setEdges(nextEdges);
     });
@@ -97,7 +110,7 @@ function FlowCanvasInner() {
       curr.map((node) => ({
         ...node,
         data: {
-          ...node.data,
+          ...(node.data && typeof node.data === 'object' ? node.data : {}),
           state: blockStates[node.id] || { status: 'idle' },
         },
       }))
@@ -124,6 +137,11 @@ function FlowCanvasInner() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        defaultEdgeOptions={{
+          type: 'bezier',
+          interactionWidth: 20,
+          zIndex: 1,
+        }}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -131,17 +149,25 @@ function FlowCanvasInner() {
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.1}
         maxZoom={2}
+        style={{ background: 'transparent' }}
       >
-        <Background color="#2a3441" gap={28} size={1} />
+        <Background color="rgba(127, 138, 158, 0.35)" gap={20} size={1} />
         <Controls />
         <MiniMap
           nodeColor={(n) => {
             const status = n.data?.state?.status;
-            if (status === 'calling') return '#4fb7ff';
-            if (status === 'returned') return '#32b67a';
+            if (status === 'calling') return '#0ea5a4';
+            if (status === 'returned') return '#22c55e';
             if (status === 'error') return '#dc2626';
-            if (status === 'dimmed') return '#1f2937';
-            return '#64748b';
+            if (status === 'dimmed') return '#cbd5e1';
+            return '#94a3b8';
+          }}
+          style={{
+            background: 'rgba(255,255,255,0.58)',
+            border: '1px solid rgba(255,255,255,0.75)',
+            borderRadius: 14,
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 16px 30px -22px rgba(15,23,42,0.4)',
           }}
         />
       </ReactFlow>
@@ -149,10 +175,33 @@ function FlowCanvasInner() {
   );
 }
 
+function styleEdges(sourceEdges: ParsedRepo['edges'], flowSet: Set<string>): Edge[] {
+  return sourceEdges.map((e) => {
+    const active = flowSet.has(e.source) && flowSet.has(e.target);
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: 'bezier',
+      animated: active,
+      className: active ? 'edge-active' : 'edge-idle',
+      style: {
+        stroke: active ? '#111827' : 'rgba(15, 23, 42, 0.28)',
+        strokeWidth: active ? 2.4 : 1.45,
+        strokeDasharray: active ? '8 5' : undefined,
+        strokeLinecap: 'round',
+        opacity: active ? 1 : 0.78,
+      },
+    };
+  });
+}
+
 function selectRenderableNodeIds(repo: ParsedRepo, flowSet: Set<string>): Set<string> {
   if (repo.functions.length <= LARGE_GRAPH_THRESHOLD) {
     return new Set(repo.functions.map((fn) => fn.id));
   }
+  const hasFlowIntersection =
+    flowSet.size === 0 ? false : repo.functions.some((fn) => flowSet.has(fn.id));
 
   const degree = new Map<string, number>();
   for (const fn of repo.functions) degree.set(fn.id, 0);
@@ -162,8 +211,8 @@ function selectRenderableNodeIds(repo: ParsedRepo, flowSet: Set<string>): Set<st
   }
 
   const scored = [...repo.functions].sort((a, b) => {
-    const aBoost = flowSet.has(a.id) ? 1000 : 0;
-    const bBoost = flowSet.has(b.id) ? 1000 : 0;
+    const aBoost = hasFlowIntersection && flowSet.has(a.id) ? 1000 : 0;
+    const bBoost = hasFlowIntersection && flowSet.has(b.id) ? 1000 : 0;
     const aType = a.type === 'route' || a.type === 'handler' ? 30 : 0;
     const bType = b.type === 'route' || b.type === 'handler' ? 30 : 0;
     const aScore = (degree.get(a.id) || 0) + aBoost + aType;
@@ -171,12 +220,20 @@ function selectRenderableNodeIds(repo: ParsedRepo, flowSet: Set<string>): Set<st
     return bScore - aScore;
   });
 
-  const selected = new Set<string>([...flowSet]);
+  const selected = new Set<string>(hasFlowIntersection ? [...flowSet] : []);
   for (const fn of scored) {
     if (selected.size >= LARGE_GRAPH_NODE_CAP) break;
     selected.add(fn.id);
   }
   return selected;
+}
+
+function sameSet(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) {
+    if (!b.has(v)) return false;
+  }
+  return true;
 }
 
 export function FlowCanvas() {

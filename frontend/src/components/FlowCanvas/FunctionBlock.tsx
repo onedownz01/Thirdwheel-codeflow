@@ -10,20 +10,32 @@ interface Props {
 }
 
 const TYPE_COLORS: Record<FunctionType, string> = {
-  component: '#32b67a',
-  hook: '#e0a458',
-  route: '#3f82d9',
-  handler: '#4fb7ff',
-  service: '#8dc891',
-  db: '#ce7e2f',
-  auth: '#c97f45',
-  util: '#8a90a6',
-  other: '#667085'
+  component: '#28a98a',
+  hook: '#8c6cf8',
+  route: '#3b82f6',
+  handler: '#0ea5a4',
+  service: '#2563eb',
+  db: '#f59e0b',
+  auth: '#f43f5e',
+  util: '#64748b',
+  other: '#475569'
 };
 
 export const FunctionBlock = memo(({ data }: Props) => {
   const { fn, state } = data;
   const color = TYPE_COLORS[fn.type];
+
+  const formatValue = (value: unknown): string => {
+    if (value === null || value === undefined) return 'null';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    try {
+      const text = JSON.stringify(value);
+      return text.length > 80 ? `${text.slice(0, 80)}...` : text;
+    } catch {
+      return String(value);
+    }
+  };
 
   return (
     <div className={`fn-block state-${state.status}`} style={{ borderLeftColor: color }}>
@@ -50,7 +62,7 @@ export const FunctionBlock = memo(({ data }: Props) => {
             <div key={p.name} className="fn-param">
               <span>{p.direction === 'in' ? '→' : '←'}</span>
               <span>{p.name}</span>
-              <span>{runtime?.value ?? p.type}</span>
+              <span>{runtime ? formatValue(runtime.value) : p.type}</span>
             </div>
           );
         })}

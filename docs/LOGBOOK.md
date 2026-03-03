@@ -151,3 +151,21 @@ Dry run result (end-to-end):
 
 Validation sample after confidence/extraction fixes:
 - `NousResearch/hermes-agent` now yields 59 intents (was 5 in prior snapshot), including backend route intents and CLI intents.
+
+## 14) Post-Redesign Stability Fix (2026-03-03)
+Issue reported:
+- Clicking some intents caused the UI to appear blank/vanished.
+
+Root cause and mitigation:
+1. Some extracted intents (notably CLI-derived placeholders) can have flow IDs that do not intersect rendered function nodes.
+2. Previous focus logic dimmed everything when any flow set existed, even if there was no real intersection.
+
+Fixes applied:
+- `frontend/src/store/flowStore.ts`: only dim non-flow nodes when intent flow intersects actual repo nodes.
+- `frontend/src/components/FlowCanvas/FlowCanvas.tsx`: large-graph selection now ignores non-intersecting flow IDs and falls back to high-signal nodes.
+- Added defensive node-data guard in flow state update map.
+- Added `AppErrorBoundary` (`frontend/src/components/AppErrorBoundary.tsx`) and wired in `frontend/src/main.tsx` to prevent full white-screen failures.
+
+Verification:
+- Frontend lint + build pass.
+- End-to-end dry run still passes on `NousResearch/hermes-agent`.
