@@ -117,6 +117,45 @@ def _coerce_parse_request(payload: Any) -> ParseRequest:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+def _coerce_trace_start_request(payload: Any) -> TraceStartRequest:
+    candidate = payload
+    if isinstance(candidate, (bytes, bytearray)):
+        candidate = candidate.decode("utf-8", errors="ignore")
+    if isinstance(candidate, str):
+        stripped = candidate.strip()
+        try:
+            candidate = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            parsed_qs = parse_qs(stripped, keep_blank_values=True)
+            if parsed_qs.get("repo") and parsed_qs.get("intent_id"):
+                candidate = {
+                    "repo": parsed_qs["repo"][0],
+                    "intent_id": parsed_qs["intent_id"][0],
+                    "mode": parsed_qs.get("mode", ["simulation"])[0],
+                    "simulate_error_at_step": parsed_qs.get("simulate_error_at_step", [None])[0],
+                }
+            else:
+                raise HTTPException(status_code=422, detail=f"Invalid JSON string body: {exc}") from exc
+
+    if isinstance(candidate, dict) and "repo" not in candidate and len(candidate) == 1:
+        only_key = next(iter(candidate.keys()))
+        if isinstance(only_key, str) and only_key.strip().startswith("{"):
+            try:
+                parsed_key = json.loads(only_key.strip())
+                if isinstance(parsed_key, dict):
+                    candidate = parsed_key
+            except json.JSONDecodeError:
+                pass
+
+    if not isinstance(candidate, dict):
+        raise HTTPException(status_code=422, detail="Request body must include repo and intent_id.")
+
+    try:
+        return TraceStartRequest.model_validate(candidate)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.get("/health")
 async def health() -> ApiEnvelope:
     return envelope(
@@ -211,7 +250,8 @@ async def get_occurrences(repo: str, intent_id: str | None = None, limit: int = 
 
 
 @app.post("/trace/start")
-async def trace_start(req: TraceStartRequest, request: Request) -> ApiEnvelope:
+async def trace_start(payload: Annotated[Any, Body()], request: Request) -> ApiEnvelope:
+    req = _coerce_trace_start_request(payload)
     normalized_repo = _normalize_repo_input(req.repo)
     key = normalized_repo.lower().strip()
     parsed = repo_cache.get(key)

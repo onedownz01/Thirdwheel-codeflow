@@ -100,12 +100,24 @@ function App() {
           traceContext.newHeaders()
         );
         startTrace(intent, started.session_id, started.trace_id);
+        requestFitView();
         socket.connect(started.ws_path);
       } catch (err) {
         setError(toErrorMessage(err));
       }
     },
-    [api, repo, setError, setTraceWarning, simulateError, socket, startTrace, traceContext, traceMode]
+    [
+      api,
+      repo,
+      requestFitView,
+      setError,
+      setTraceWarning,
+      simulateError,
+      socket,
+      startTrace,
+      traceContext,
+      traceMode,
+    ]
   );
 
   const requestFix = useCallback(async () => {
