@@ -134,3 +134,8 @@ INFO:     127.0.0.1:57647 - "OPTIONS /trace/start HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57647 - "POST /trace/start HTTP/1.1" 200 OK
 INFO:     ('127.0.0.1', 57649) - "WebSocket /ws/trace/374dac60-ac84-4ec6-a7c5-86c6f47f7afb" [accepted]
 INFO:     connection open
+INFO:     Shutting down
+INFO:     connection closed
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [77346]
