@@ -21,6 +21,13 @@ ROUTE_DECORATOR_PATTERN = re.compile(
     r"@(app|router|bp)\.(get|post|put|delete|patch|options|head)\s*\(([^)]*)\)",
     re.IGNORECASE,
 )
+# Flask / Werkzeug: @app.route("/path", methods=["POST", "GET"])
+# Group 1: app|bp, Group 2: path, Group 3: methods list contents (optional)
+FLASK_ROUTE_PATTERN = re.compile(
+    r'@(app|bp)\.route\s*\(\s*[\'"]([^\'"]*)[\'"]([^)]*)\)',
+    re.IGNORECASE | re.DOTALL,
+)
+_FLASK_METHODS_RE = re.compile(r'methods\s*=\s*\[([^\]]+)\]', re.IGNORECASE)
 CLI_DECORATOR_PATTERN = re.compile(
     r"@(?:\w+\.)?(?:command|cli\.command)\s*\(([^)]*)\)",
     re.IGNORECASE,
@@ -232,7 +239,41 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
     decorators = _decorator_lines(fn.line, lines)
     m = ROUTE_DECORATOR_PATTERN.search(decorators)
     if not m:
-        return None
+        # Try Flask-style: @app.route("/path", methods=["POST"])
+        mf = FLASK_ROUTE_PATTERN.search(decorators)
+        if not mf:
+            return None
+        route_path = mf.group(2)
+        rest = mf.group(3)  # everything after the path string inside the parens
+        mm = _FLASK_METHODS_RE.search(rest)
+        if mm:
+            raw_methods = [s.strip().strip("'\"") for s in mm.group(1).split(",")]
+            method = raw_methods[0].upper() if raw_methods else "GET"
+        else:
+            method = "GET"  # Flask default when methods= is omitted
+        label = f"{method} {route_path}"
+        canonical = f"api.{method.lower()}.{fn.name}"
+        evidence = IntentEvidence(
+            kind=EvidenceKind.BACKEND_ROUTE,
+            source_file=fn.file,
+            line=fn.line,
+            symbol=fn.name,
+            excerpt=decorators,
+            weight=0.9,
+        )
+        return Intent(
+            id=f"intent:{fn.file}:{fn.name}:{fn.line}",
+            canonical_id=canonical,
+            label=label,
+            icon="🧭",
+            trigger=f"route:{method} {route_path}",
+            handler_fn_id=fn.id,
+            source_file=fn.file,
+            group="Backend",
+            status="candidate",
+            confidence=0.88,
+            evidence=[evidence],
+        )
 
     method = m.group(2).upper()
     route_path = _route_path_from_args(m.group(3))
