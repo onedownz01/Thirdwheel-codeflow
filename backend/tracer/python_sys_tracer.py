@@ -129,6 +129,17 @@ def _trace_hook(frame, event: str, arg) -> Optional[callable]:
         if co_name.startswith("<"):
             return None
 
+        # Fast-path: skip class-body execution frames.
+        # When Python executes a class body (class Foo: ...), CPython creates a
+        # frame whose co_flags has CO_OPTIMIZED (0x0001) cleared.  Regular
+        # functions always have CO_OPTIMIZED set.  Module bodies (<module>) are
+        # already handled above by the co_name.startswith("<") check.
+        # Class-body frames fire once at import time, never match a parsed
+        # function, and would always appear as live::ClassName synthetic dark
+        # nodes — filtering them removes unavoidable noise.
+        if not (frame.f_code.co_flags & 0x0001):  # CO_OPTIMIZED not set → class body
+            return None
+
         # Fast-path: check if this file is inside the project
         filename = frame.f_code.co_filename
         if not _is_project_file(filename):
