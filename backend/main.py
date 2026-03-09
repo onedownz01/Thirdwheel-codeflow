@@ -669,6 +669,7 @@ async def trace_live_websocket(websocket: WebSocket, session_id: str) -> None:
 
     emitted_count = 0
     already_sent = 0
+    _warned_no_events = False  # emit at most one "no events" warning per session
 
     try:
         # Stream events as they arrive. Stop when:
@@ -684,6 +685,26 @@ async def trace_live_websocket(websocket: WebSocket, session_id: str) -> None:
                 sig.clear()
             except asyncio.TimeoutError:
                 idle += 1.0
+
+                # After 10 idle seconds with zero events, the tracer is almost
+                # certainly not running in the subprocess.  Warn the user so they
+                # see a yellow banner instead of a silent empty graph.
+                if idle >= 10.0 and not _warned_no_events and already_sent == 0:
+                    _warned_no_events = True
+                    await emitter.emit({
+                        "schema_version": SCHEMA_VERSION,
+                        "session_id": session_id,
+                        "timestamp_ms": idle * 1000,
+                        "type": "trace_warning",
+                        "warning": (
+                            "No trace events received after 10 seconds — "
+                            "the CodeFlow tracer may not be active in your app's process. "
+                            "Most common cause: `websockets` is not installed in your "
+                            "project's virtual environment. "
+                            "Fix: pip install websockets"
+                        ),
+                    })
+
                 if not live_raw_events.get(session_id):
                     continue
                 # If there are pending events even without a signal, process them

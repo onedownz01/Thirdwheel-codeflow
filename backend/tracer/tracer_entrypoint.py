@@ -29,8 +29,16 @@ def _bootstrap() -> None:
     # Find the tracer module. process_runner.py puts its directory on PYTHONPATH.
     try:
         import python_sys_tracer as tracer  # type: ignore
-    except ImportError:
-        # Tracer module not found on path — abort silently
+    except ImportError as e:
+        # Loud stderr warning — silent failure means users see 0 lit nodes and
+        # have no idea why.  Most common cause: `websockets` not installed.
+        print(
+            f"[CodeFlow] WARNING: tracer failed to load ({e}). "
+            f"Your app will run normally but CodeFlow will not trace it. "
+            f"Fix: pip install websockets",
+            file=sys.stderr,
+            flush=True,
+        )
         return
 
     try:
@@ -39,8 +47,14 @@ def _bootstrap() -> None:
             ingest_ws=ingest_ws,
             session_id=session_id,
         )
-    except Exception:
-        # Never crash the user's app because of CodeFlow
+    except Exception as e:
+        # Never crash the user's app because of CodeFlow, but do warn loudly.
+        print(
+            f"[CodeFlow] WARNING: tracer initialisation failed ({e}). "
+            f"Your app will run normally but CodeFlow will not trace it.",
+            file=sys.stderr,
+            flush=True,
+        )
         return
 
 
