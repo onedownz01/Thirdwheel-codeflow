@@ -3,19 +3,25 @@ backend/tracer/process_runner.py
 
 Launches the user's Python process with the CodeFlow tracer injected.
 
-Usage (called by /runner/start endpoint):
+Usage (called by /trace/start with mode=live):
     runner = ProcessRunner(project_root, repo_key, ingest_ws_url)
     pid = await runner.start(["python", "-m", "uvicorn", "main:app"], session_id)
     await runner.stop()
 
-The tracer is injected via PYTHONSTARTUP — Python runs that file before
-executing any user code, including -m and script targets.
+Injection strategy: run_with_tracer.py wrapper
+  ProcessRunner rewrites the user's command so that run_with_tracer.py runs
+  first.  That script imports tracer_entrypoint (installing sys.settrace),
+  then hands control to the original module or script via runpy.
 
-Why PYTHONSTARTUP and not PYTHONPATH + sitecustomize?
-  - PYTHONSTARTUP is cleaner: only runs once, in interactive+script mode
-  - sitecustomize affects every subprocess the user's app spawns (e.g. celery workers)
-    which could be desirable later but is too broad for v1
-  - We also add our tracer dir to PYTHONPATH so the import resolves
+  Example rewrites:
+    ["python", "-m", "uvicorn", "main:app"]  →  ["python", WRAPPER, "uvicorn", "main:app"]
+    ["python", "app.py", "--port", "8000"]   →  ["python", WRAPPER, "app.py", "--port", "8000"]
+    ["python3", "-m", "flask", "run"]        →  ["python3", WRAPPER, "flask", "run"]
+    ["uvicorn", "main:app"]                  →  unchanged (non-python executable)
+
+Why not PYTHONSTARTUP?
+  PYTHONSTARTUP only fires in interactive mode (the Python REPL).
+  It does NOT run for `python -m module` or `python script.py`.
 """
 from __future__ import annotations
 
@@ -26,21 +32,22 @@ import sys
 from pathlib import Path
 
 
-# Directory containing python_sys_tracer.py and tracer_entrypoint.py
+# Directory containing python_sys_tracer.py, tracer_entrypoint.py, run_with_tracer.py
 _TRACER_DIR = str(Path(__file__).parent.resolve())
+_WRAPPER = str(Path(_TRACER_DIR) / "run_with_tracer.py")
 
 
 class ProcessRunner:
     """
     Manages a single traced subprocess.
-    One instance per /runner/start call.
+    One instance per /trace/start (live mode) call.
     """
 
     def __init__(
         self,
         project_root: str,
         repo_key: str,
-        ingest_ws_url: str = "ws://127.0.0.1:8765/ws/tracer/ingest",
+        ingest_ws_url: str = "ws://127.0.0.1:8000/ws/tracer/ingest",
     ) -> None:
         self.project_root = str(Path(project_root).resolve())
         self.repo_key = repo_key
@@ -71,9 +78,10 @@ class ProcessRunner:
 
         self._session_id = session_id
         env = self._build_env(session_id)
+        wrapped = self._transform_command(command)
 
         self._process = await asyncio.create_subprocess_exec(
-            *command,
+            *wrapped,
             env=env,
             cwd=self.project_root,
             # Forward stdout/stderr to the CodeFlow backend's own streams
@@ -104,15 +112,38 @@ class ProcessRunner:
         return await self._process.wait()
 
     def update_session(self, session_id: str) -> None:
-        """
-        Update the session ID for the next intent window.
-        The tracer reads SESSION_ID from its env at startup — for a running
-        process this must be signalled differently (see capture window control).
-        This method updates our record; the actual signal goes via the ingest WS.
-        """
+        """Update our record of the current session ID."""
         self._session_id = session_id
 
     # ── Internals ─────────────────────────────────────────────────────────────
+
+    def _transform_command(self, command: list[str]) -> list[str]:
+        """
+        Rewrite the user's command to inject the tracer wrapper.
+
+        For Python commands, inserts run_with_tracer.py after the Python
+        executable and drops the '-m' flag (run_with_tracer handles it via runpy).
+
+        For non-Python executables (uvicorn, gunicorn directly), returns unchanged
+        — tracer injection is not possible without knowing they're Python.
+        """
+        if not command:
+            return command
+
+        executable = command[0]
+        exe_lower = Path(executable).name.lower()
+
+        # Only rewrite python / python3 / python3.x invocations
+        if "python" not in exe_lower:
+            return command
+
+        rest = command[1:]
+
+        # Drop leading '-m' flag — run_with_tracer uses runpy.run_module instead
+        if rest and rest[0] == "-m":
+            rest = rest[1:]
+
+        return [executable, _WRAPPER] + rest
 
     def _build_env(self, session_id: str) -> dict[str, str]:
         """
@@ -127,14 +158,10 @@ class ProcessRunner:
         # Tell the tracer where to send events
         env["CODEFLOW_INGEST_WS"] = self.ingest_ws_url
 
-        # Initial session ID (can be updated via capture window signals)
+        # Initial session ID
         env["CODEFLOW_SESSION_ID"] = session_id
 
-        # PYTHONSTARTUP: Python runs this file before user code in script/module mode
-        entrypoint = str(Path(_TRACER_DIR) / "tracer_entrypoint.py")
-        env["PYTHONSTARTUP"] = entrypoint
-
-        # Ensure the tracer module (python_sys_tracer.py) is importable
+        # Ensure the tracer modules are importable in the child process
         existing_path = env.get("PYTHONPATH", "")
         if existing_path:
             env["PYTHONPATH"] = f"{_TRACER_DIR}{os.pathsep}{existing_path}"
