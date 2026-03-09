@@ -43,40 +43,41 @@ export function TopBar({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="owner/repo"
+          onKeyDown={(e) => e.key === 'Enter' && !loading && value.trim() && onParse(value.trim())}
         />
+        {traceMode === 'live' && (
+          <>
+            <input
+              className="live-input"
+              value={projectRoot}
+              onChange={(e) => onProjectRootChange(e.target.value)}
+              placeholder="/path/to/project"
+              title="Absolute path to your project on disk"
+            />
+            <input
+              className="live-input"
+              value={command}
+              onChange={(e) => onCommandChange(e.target.value)}
+              placeholder="python -m uvicorn main:app"
+              title="Command to run your app"
+            />
+          </>
+        )}
         <button
           className="primary-btn"
           disabled={loading || !value.trim()}
           onClick={() => onParse(value.trim())}
         >
-          {loading ? 'Parsing...' : 'Parse Repo'}
+          {loading ? loadingStep || 'Parsing…' : 'Parse'}
         </button>
       </div>
-      {traceMode === 'live' && (
-        <div className="live-inputs">
-          <input
-            className="live-input"
-            value={projectRoot}
-            onChange={(e) => onProjectRootChange(e.target.value)}
-            placeholder="/path/to/project"
-            title="Absolute path to your project on disk"
-          />
-          <input
-            className="live-input"
-            value={command}
-            onChange={(e) => onCommandChange(e.target.value)}
-            placeholder="python -m uvicorn main:app"
-            title="Command to run your app"
-          />
-        </div>
-      )}
-      <div className="topbar-status">{loadingStep}</div>
+      <div className="topbar-status">{!loading && loadingStep}</div>
       <select
         className="mode-select"
         value={traceMode}
         onChange={(e) => onModeChange(e.target.value as 'simulation' | 'otel' | 'live')}
       >
-        <option value="simulation">Simulation</option>
+        <option value="simulation">Sim</option>
         <option value="otel">OTel</option>
         <option value="live">Live</option>
       </select>
@@ -87,7 +88,7 @@ export function TopBar({
             checked={simulateError}
             onChange={(e) => onToggleSimError(e.target.checked)}
           />
-          Sim Error
+          err
         </label>
       )}
     </header>

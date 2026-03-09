@@ -160,14 +160,16 @@ function App() {
         onCommandChange={setCommand}
       />
       <div className="app-body">
-        <RepoHistoryPanel repos={repoHistory} activeRepo={repo?.repo} onSelectRepo={parseRepo} />
-        <main className="main-panel">
+        <aside className="sidebar-left">
+          <IntentPanel intents={intents} activeIntentId={activeIntent?.id} onRunIntent={runIntent} />
+          <RepoHistoryPanel repos={repoHistory} activeRepo={repo?.repo} onSelectRepo={parseRepo} />
+        </aside>
+        <main className="canvas-panel">
           {error && <div className="error-banner">{error}</div>}
           {traceWarning && <div className="warning-banner">{traceWarning}</div>}
           <FlowCanvas />
         </main>
-        <aside className="right-panel">
-          <IntentPanel intents={intents} activeIntentId={activeIntent?.id} onRunIntent={runIntent} />
+        <aside className="sidebar-right">
           <TracePanel />
         </aside>
       </div>

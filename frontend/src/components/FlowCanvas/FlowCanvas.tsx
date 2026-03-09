@@ -151,23 +151,22 @@ function FlowCanvasInner() {
         maxZoom={2}
         style={{ background: 'transparent' }}
       >
-        <Background color="rgba(127, 138, 158, 0.35)" gap={20} size={1} />
+        <Background color="#1e1e1e" gap={24} size={1} />
         <Controls />
         <MiniMap
           nodeColor={(n) => {
             const status = n.data?.state?.status;
-            if (status === 'calling') return '#0ea5a4';
-            if (status === 'returned') return '#22c55e';
-            if (status === 'error') return '#dc2626';
-            if (status === 'dimmed') return '#cbd5e1';
-            return '#94a3b8';
+            if (status === 'calling') return '#00d4aa';
+            if (status === 'returned') return '#3a3a3a';
+            if (status === 'error') return '#e05252';
+            if (status === 'dimmed') return '#1a1a1a';
+            return '#252525';
           }}
+          maskColor="rgba(9, 9, 9, 0.72)"
           style={{
-            background: 'rgba(255,255,255,0.58)',
-            border: '1px solid rgba(255,255,255,0.75)',
-            borderRadius: 14,
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 16px 30px -22px rgba(15,23,42,0.4)',
+            background: '#111111',
+            border: '1px solid #222222',
+            borderRadius: 4,
           }}
         />
       </ReactFlow>
@@ -183,14 +182,13 @@ function styleEdges(sourceEdges: ParsedRepo['edges'], flowSet: Set<string>): Edg
       source: e.source,
       target: e.target,
       type: 'bezier',
-      animated: active,
+      animated: false,
       className: active ? 'edge-active' : 'edge-idle',
       style: {
-        stroke: active ? '#111827' : 'rgba(15, 23, 42, 0.28)',
-        strokeWidth: active ? 2.4 : 1.45,
-        strokeDasharray: active ? '8 5' : undefined,
+        stroke: active ? '#00d4aa' : '#252525',
+        strokeWidth: active ? 1.5 : 1,
         strokeLinecap: 'round',
-        opacity: active ? 1 : 0.78,
+        opacity: active ? 1 : 1,
       },
     };
   });
