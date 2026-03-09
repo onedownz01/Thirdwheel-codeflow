@@ -49,9 +49,21 @@ _queue_lock = threading.Lock()
 _sequence = 0
 _seq_lock = threading.Lock()
 
-# Set of normalized absolute paths inside the project root.
-# Populated once at startup. Tracer checks membership before doing anything.
+# Normalized absolute path of the project root, with a trailing separator.
+# e.g. "/home/user/myapp/"  — the trailing sep prevents matching sibling dirs
+# and makes component-level exclusion unambiguous.
 _project_root_norm: str = ""
+
+# First-level subdirectory names that are NEVER project source — always excluded.
+# Covers virtualenvs (wherever they live inside the project root) and tooling dirs.
+_EXCLUDED_FIRST_COMPONENTS: frozenset[str] = frozenset({
+    ".venv", "venv", "env", ".env",          # virtual environments
+    "node_modules",                            # JS deps (may co-exist in monorepos)
+    ".tox", ".nox",                            # test environments
+    ".git", ".hg", ".svn",                     # VCS internals
+    "__pypackages__",                          # PEP 582
+    "build", "dist", ".eggs", "*.egg-info",    # build artefacts
+})
 
 # Call stack depth per thread (for parent/child span tracking)
 _call_stack: threading.local = threading.local()
@@ -73,7 +85,10 @@ def initialize(project_root: str, ingest_ws: str, session_id: str) -> None:
     if not PROJECT_ROOT:
         raise ValueError("CODEFLOW_PROJECT_ROOT must be set")
 
-    _project_root_norm = str(Path(PROJECT_ROOT).resolve())
+    # Trailing separator guarantees that "/project/app" doesn't accidentally
+    # match "/project/app-extra/" (prefix collision) and makes the
+    # first-component exclusion split unambiguous.
+    _project_root_norm = str(Path(PROJECT_ROOT).resolve()).rstrip("/\\") + os.sep
 
     # Start background thread that drains the queue and sends to backend
     sender = threading.Thread(
@@ -106,6 +121,14 @@ def _trace_hook(frame, event: str, arg) -> Optional[callable]:
         return _trace_hook
 
     try:
+        # Fast-path: skip synthetic Python frames that are never useful and
+        # would always appear as live:: noise (no matching parsed function).
+        # co_name examples: "<module>", "<listcomp>", "<dictcomp>", "<genexpr>",
+        # "<lambda>" (lambdas are skipped too — they have no stable identity).
+        co_name = frame.f_code.co_name
+        if co_name.startswith("<"):
+            return None
+
         # Fast-path: check if this file is inside the project
         filename = frame.f_code.co_filename
         if not _is_project_file(filename):
@@ -128,10 +151,18 @@ def _trace_hook(frame, event: str, arg) -> Optional[callable]:
 
 def _is_project_file(filename: str) -> bool:
     """
-    Returns True only for files inside the user's project root.
-    Skips stdlib, site-packages, venv, .pyc files, etc.
+    Returns True only for files that are genuine project source files —
+    i.e. inside the project root AND not inside a virtualenv / tooling dir.
 
     This is the #1 performance gate — must be as fast as possible.
+
+    Correctness notes:
+    * _project_root_norm has a trailing separator, so startswith() is a true
+      path-prefix check (no accidental matches on sibling dirs).
+    * We exclude the first path component after the root to drop .venv/,
+      venv/, node_modules/ etc. that may live inside the project tree.
+    * We also exclude any path containing "site-packages" or "dist-packages"
+      as a belt-and-suspenders guard for non-standard venv layouts.
     """
     if not filename:
         return False
@@ -139,7 +170,25 @@ def _is_project_file(filename: str) -> bool:
         return False
     try:
         resolved = str(Path(filename).resolve())
-        return resolved.startswith(_project_root_norm)
+
+        # Must be inside the project root (trailing-sep guarantees prefix safety)
+        if not resolved.startswith(_project_root_norm):
+            return False
+
+        # Belt-and-suspenders: reject any path that contains site-packages
+        # regardless of where they live (handles non-standard venv layouts).
+        if "site-packages" in resolved or "dist-packages" in resolved:
+            return False
+
+        # Exclude first-level subdirectories that are never project source.
+        # e.g. _project_root_norm = "/proj/"  resolved = "/proj/.venv/lib/h11.py"
+        #      rel = ".venv/lib/h11.py"  first_component = ".venv"  → excluded
+        rel = resolved[len(_project_root_norm):]
+        first_component = rel.split("/")[0].split("\\")[0]
+        if first_component in _EXCLUDED_FIRST_COMPONENTS:
+            return False
+
+        return True
     except Exception:
         return False
 

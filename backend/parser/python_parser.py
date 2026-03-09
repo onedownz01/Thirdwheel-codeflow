@@ -111,15 +111,65 @@ def _extract_params(node) -> list[Param]:
 
 
 def _decorator_lines(start_line: int, lines: list[str]) -> str:
+    """
+    Collect all decorator text immediately above a function definition.
+
+    Handles both single-line and multi-line decorators, e.g.:
+
+        @router.post("/login", ...)          # single-line — was already working
+        async def login(...):
+
+        @router.post(                        # multi-line — was broken before this fix
+            "",
+            status_code=HTTP_201_CREATED,
+            name="auth:register",
+        )
+        async def register(...):
+
+    Strategy: scan backward from the line above `async def`.
+    * Lines that start with "@" are decorator start lines — collect and keep going.
+    * Lines that are clearly continuation content (start with whitespace, or are
+      bare ")" / argument tokens) while we haven't yet found an "@" are part of a
+      multi-line decorator — collect and keep scanning.
+    * A blank line or a line that starts with non-decorator, non-continuation
+      content (another def/class/statement) terminates the scan.
+    """
     buf: list[str] = []
-    idx = start_line - 2
+    idx = start_line - 2          # 0-indexed line just above the `def`/`async def`
+    found_at_sign = False
+
     while idx >= 0:
-        line = lines[idx].strip()
-        if line.startswith("@"):
-            buf.append(line)
+        raw = lines[idx]
+        stripped = raw.strip()
+
+        if not stripped:
+            break  # blank line = definitely outside decorator block
+
+        if stripped.startswith("@"):
+            buf.append(raw)
+            found_at_sign = True
+            idx -= 1
+            # After finding a "@" line keep scanning for stacked decorators.
+            continue
+
+        if found_at_sign:
+            # We've already collected at least one "@" line; anything that doesn't
+            # start with "@" or whitespace is a new statement — stop.
+            if not raw[0:1].strip() == "":  # i.e. not leading whitespace
+                break
+            # Indented line between stacked decorators — rare but valid; collect.
+            buf.append(raw)
             idx -= 1
             continue
-        break
+
+        # We haven't found "@" yet: we're inside a multi-line decorator's argument
+        # list (closing paren, arg values, etc.).  Keep collecting unless the line
+        # looks like the start of a completely different statement.
+        if stripped.startswith(("def ", "async def ", "class ", "return ", "raise ")):
+            break  # hit a statement — stop
+        buf.append(raw)
+        idx -= 1
+
     buf.reverse()
     return "\n".join(buf)
 
@@ -286,7 +336,9 @@ def _extract_argparse_intents(path: str, content: str) -> list[Intent]:
 
 
 def _route_path_from_args(args: str) -> str:
-    m = re.search(r"['\"`]([^'\"`]+)['\"`]", args)
+    # Allow empty match (*) so that @router.post("", ...) correctly yields ""
+    # rather than accidentally matching the next quoted string in the args.
+    m = re.search(r"['\"`]([^'\"`]*)['\"`]", args)
     return m.group(1) if m else "/"
 
 
