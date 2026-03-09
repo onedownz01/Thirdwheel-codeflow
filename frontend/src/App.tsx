@@ -57,7 +57,9 @@ function App() {
 
   const [repoInput, setRepoInput] = useState('tiangolo/fastapi');
   const [simulateError, setSimulateError] = useState(false);
-  const [traceMode, setTraceMode] = useState<'simulation' | 'otel'>('simulation');
+  const [traceMode, setTraceMode] = useState<'simulation' | 'otel' | 'live'>('simulation');
+  const [projectRoot, setProjectRoot] = useState('');
+  const [command, setCommand] = useState('');
 
   const parseRepo = useCallback(
     async (repoName: string) => {
@@ -93,7 +95,9 @@ function App() {
           intent.id,
           traceMode,
           simulateError ? 2 : undefined,
-          traceContext.newHeaders()
+          traceContext.newHeaders(),
+          traceMode === 'live' ? projectRoot : undefined,
+          traceMode === 'live' ? command.trim().split(/\s+/).filter(Boolean) : undefined
         );
         startTrace(intent, started.session_id, started.trace_id);
         requestFitView();
@@ -104,6 +108,8 @@ function App() {
     },
     [
       api,
+      command,
+      projectRoot,
       repo,
       requestFitView,
       setError,
@@ -148,6 +154,10 @@ function App() {
         onToggleSimError={setSimulateError}
         traceMode={traceMode}
         onModeChange={setTraceMode}
+        projectRoot={projectRoot}
+        onProjectRootChange={setProjectRoot}
+        command={command}
+        onCommandChange={setCommand}
       />
       <div className="app-body">
         <RepoHistoryPanel repos={repoHistory} activeRepo={repo?.repo} onSelectRepo={parseRepo} />

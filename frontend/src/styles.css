@@ -147,6 +147,28 @@ body,
   font-weight: 700;
 }
 
+.live-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-input {
+  background: var(--glass-deep);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  min-width: 0;
+}
+
+.live-input:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
 .app-body {
   display: grid;
   grid-template-columns: 330px 1fr 560px;

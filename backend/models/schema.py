@@ -29,6 +29,7 @@ class IntentStatus(str, Enum):
 class TraceMode(str, Enum):
     SIMULATION = "simulation"
     OTel = "otel"
+    LIVE = "live"
 
 
 class EvidenceKind(str, Enum):
@@ -194,6 +195,9 @@ class TraceStartRequest(BaseModel):
     intent_id: str
     mode: TraceMode = TraceMode.SIMULATION
     simulate_error_at_step: Optional[int] = None
+    # Live mode only
+    project_root: str = ""
+    command: list[str] = []
 
 
 class IngestedSpan(BaseModel):

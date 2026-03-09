@@ -309,7 +309,29 @@ async def trace_start(payload: Annotated[Any, Body()], request: Request) -> ApiE
         "mode": session_mode,
         "simulate_error_at_step": req.simulate_error_at_step,
         "warnings": warnings,
+        "project_root": req.project_root,
     }
+
+    ws_path = f"/ws/trace/{session_id}"
+
+    if req.mode == TraceMode.LIVE:
+        if not req.project_root or not req.command:
+            raise HTTPException(
+                status_code=400,
+                detail="project_root and command are required for live mode",
+            )
+        # Pre-allocate event buffers before starting process so no events are dropped
+        live_raw_events[session_id] = []
+        live_event_signals[session_id] = asyncio.Event()
+        # Start the traced subprocess
+        runner = ProcessRunner(
+            project_root=req.project_root,
+            repo_key=key,
+            ingest_ws_url="ws://127.0.0.1:8000/ws/tracer/ingest",
+        )
+        await runner.start(req.command, session_id)
+        active_runners[key] = runner
+        ws_path = f"/ws/trace/live/{session_id}"
 
     return envelope(
         {
@@ -317,7 +339,7 @@ async def trace_start(payload: Annotated[Any, Body()], request: Request) -> ApiE
             "trace_id": trace_id,
             "root_span_id": root_span_id,
             "parent_span_id": parent_span_id,
-            "ws_path": f"/ws/trace/{session_id}",
+            "ws_path": ws_path,
             "mode": session_mode,
             "warnings": warnings,
             "simulate_error_at_step": req.simulate_error_at_step,

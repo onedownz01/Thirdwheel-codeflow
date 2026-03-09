@@ -81,9 +81,11 @@ export function useApi() {
     startTrace: (
       repo: string,
       intentId: string,
-      mode: 'simulation' | 'otel' = 'simulation',
+      mode: 'simulation' | 'otel' | 'live' = 'simulation',
       simulateErrorAtStep?: number,
-      traceHeaders?: TraceHeaders
+      traceHeaders?: TraceHeaders,
+      projectRoot?: string,
+      command?: string[]
     ) =>
       request<{
         session_id: string;
@@ -91,7 +93,7 @@ export function useApi() {
         root_span_id?: string;
         parent_span_id?: string;
         ws_path: string;
-        mode: 'simulation' | 'otel';
+        mode: 'simulation' | 'otel' | 'live';
         warnings?: string[];
         simulate_error_at_step?: number;
       }>('/trace/start', {
@@ -102,6 +104,8 @@ export function useApi() {
           intent_id: intentId,
           mode,
           simulate_error_at_step: simulateErrorAtStep,
+          project_root: projectRoot ?? '',
+          command: command ?? [],
         }),
       }),
 
