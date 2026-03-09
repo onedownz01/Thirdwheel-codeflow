@@ -237,7 +237,8 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
     method = m.group(2).upper()
     route_path = _route_path_from_args(m.group(3))
     label = f"{method} {route_path}"
-    canonical = f"api.{method.lower()}.{_slug(route_path)}"
+    # Include fn.name so two handlers at the same path (different routers) stay distinct.
+    canonical = f"api.{method.lower()}.{fn.name}"
 
     evidence = IntentEvidence(
         kind=EvidenceKind.BACKEND_ROUTE,
