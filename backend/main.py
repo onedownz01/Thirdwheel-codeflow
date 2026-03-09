@@ -574,9 +574,10 @@ async def tracer_ingest_ws(websocket: WebSocket) -> None:
             if not session_id or not raw_events:
                 continue
 
-            # Buffer events
+            # Only buffer when /ws/trace/live/{session_id} is actively listening.
+            # Discard if no listener has pre-allocated the buffer (prevents memory leak).
             if session_id not in live_raw_events:
-                live_raw_events[session_id] = []
+                continue
             live_raw_events[session_id].extend(raw_events)
 
             # Signal the WS trace handler that new events are available

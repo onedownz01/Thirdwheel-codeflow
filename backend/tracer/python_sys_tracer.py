@@ -56,10 +56,6 @@ _project_root_norm: str = ""
 # Call stack depth per thread (for parent/child span tracking)
 _call_stack: threading.local = threading.local()
 
-# Whether the tracer is currently active (user clicked intent in UI)
-_capturing: bool = False
-_capture_lock = threading.Lock()
-
 
 # ─── Startup ──────────────────────────────────────────────────────────────────
 
@@ -114,11 +110,6 @@ def _trace_hook(frame, event: str, arg) -> Optional[callable]:
         filename = frame.f_code.co_filename
         if not _is_project_file(filename):
             return None  # returning None = stop tracing this frame (huge perf win)
-
-        # Fast-path: only capture when user has triggered an intent window
-        with _capture_lock:
-            if not _capturing:
-                return _trace_hook  # hook stays installed, just not recording
 
         if event == "call":
             _handle_call(frame)
@@ -428,22 +419,6 @@ async def _sender_loop() -> None:
             # Connection failed or dropped — retry with backoff
             await asyncio.sleep(min(backoff, 30.0))
             backoff *= 2.0
-
-
-# ─── Capture window control ───────────────────────────────────────────────────
-
-def start_capture() -> None:
-    """Called by backend (via IPC or env var signal) when user triggers an intent."""
-    global _capturing
-    with _capture_lock:
-        _capturing = True
-
-
-def stop_capture() -> None:
-    """Called when the intent window closes."""
-    global _capturing
-    with _capture_lock:
-        _capturing = False
 
 
 # ─── Thread instrumentation ───────────────────────────────────────────────────
