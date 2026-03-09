@@ -39,12 +39,10 @@ function App() {
     repoHistory,
     intents,
     activeIntent,
-    traceEvents,
     isLoading,
     loadingStep,
     error,
     traceWarning,
-    isFixLoading,
     setRepo,
     setIntents,
     setLoading,
@@ -55,8 +53,6 @@ function App() {
     resetTrace,
     requestFitView,
     togglePlayback,
-    setFixLoading,
-    setFixSuggestion,
   } = useFlowStore();
 
   const [repoInput, setRepoInput] = useState('tiangolo/fastapi');
@@ -120,40 +116,6 @@ function App() {
     ]
   );
 
-  const requestFix = useCallback(async () => {
-    if (!repo || !activeIntent) return;
-    const latestError = [...traceEvents].reverse().find((e) => e.event_type === 'error');
-    if (!latestError) return;
-
-    try {
-      setFixLoading(true);
-      const payload = {
-        session_id: useFlowStore.getState().sessionId,
-        error_fn_id: latestError.fn_id,
-        trace_session: {
-          schema_version: '2.0.0',
-          session_id: useFlowStore.getState().sessionId,
-          intent_id: activeIntent.id,
-          intent_label: activeIntent.label,
-          trace_mode: 'simulation',
-          trace_id: useFlowStore.getState().traceId,
-          events: traceEvents,
-          status: 'error',
-          total_duration_ms: traceEvents[traceEvents.length - 1]?.timestamp_ms ?? 0,
-          error_at_fn_id: latestError.fn_id,
-        },
-        parsed_repo: repo,
-      };
-
-      const fix = await api.getFix(payload);
-      setFixSuggestion(fix);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setFixLoading(false);
-    }
-  }, [activeIntent, api, repo, setError, setFixLoading, setFixSuggestion, traceEvents]);
-
   const repoName = useMemo(() => repo?.repo || repoInput, [repo, repoInput]);
 
   useEffect(() => {
@@ -196,7 +158,7 @@ function App() {
         </main>
         <aside className="right-panel">
           <IntentPanel intents={intents} activeIntentId={activeIntent?.id} onRunIntent={runIntent} />
-          <TracePanel onRequestFix={requestFix} />
+          <TracePanel />
         </aside>
       </div>
     </div>

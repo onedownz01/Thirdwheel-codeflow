@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
-import type { BlockState, FunctionType, ParsedFunction } from '../../types';
+import type { BlockState, ParsedFunction } from '../../types';
 
 interface Props {
   data: {
@@ -9,66 +9,75 @@ interface Props {
   };
 }
 
-const TYPE_COLORS: Record<FunctionType, string> = {
-  component: '#28a98a',
-  hook: '#8c6cf8',
-  route: '#3b82f6',
-  handler: '#0ea5a4',
-  service: '#2563eb',
-  db: '#f59e0b',
-  auth: '#f43f5e',
-  util: '#64748b',
-  other: '#475569'
-};
-
 export const FunctionBlock = memo(({ data }: Props) => {
   const { fn, state } = data;
-  const color = TYPE_COLORS[fn.type];
 
   const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) return 'null';
-    if (typeof value === 'string') return value;
+    if (typeof value === 'string') return value.length > 40 ? `${value.slice(0, 40)}…` : value;
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     try {
       const text = JSON.stringify(value);
-      return text.length > 80 ? `${text.slice(0, 80)}...` : text;
+      return text.length > 40 ? `${text.slice(0, 40)}…` : text;
     } catch {
       return String(value);
     }
   };
 
+  // Inputs: prefer runtime values, fall back to static params
+  const inputRows = state.inputs && state.inputs.length > 0
+    ? state.inputs.slice(0, 6).map((v) => ({ name: v.name, val: formatValue(v.value), sensitive: v.is_sensitive }))
+    : fn.params.filter((p) => p.direction !== 'out').slice(0, 6).map((p) => ({ name: p.name, val: p.type, sensitive: false }));
+
+  // Outputs: only show when returned
+  const outputRows = state.outputs && state.outputs.length > 0
+    ? state.outputs.slice(0, 4).map((v) => ({ name: v.name, val: formatValue(v.value), sensitive: v.is_sensitive }))
+    : [];
+
   return (
-    <div className={`fn-block state-${state.status}`} style={{ borderLeftColor: color }}>
+    <div className={`fn-block state-${state.status}`}>
       <Handle type="target" position={Position.Left} className="fn-handle" />
 
-      {state.stepNumber !== undefined && <div className="step-badge">{state.stepNumber}</div>}
-
       <div className="fn-header">
-        <span className="fn-type" style={{ borderColor: color, color }}>
-          {fn.type}
-        </span>
+        {state.stepNumber !== undefined && (
+          <span className="fn-step">{state.stepNumber}</span>
+        )}
         <span className="fn-name">{fn.name}</span>
-        {state.durationMs !== undefined && <span className="fn-time">{Math.round(state.durationMs)}ms</span>}
+        <span className="fn-type-tag">{fn.type}</span>
+        {state.durationMs !== undefined && (
+          <span className="fn-time">{Math.round(state.durationMs)}ms</span>
+        )}
       </div>
 
-      <div className="fn-file">
-        {fn.file}:{fn.line}
-      </div>
+      <div className="fn-file">{fn.file}:{fn.line}</div>
 
-      <div className="fn-body">
-        {fn.params.slice(0, 5).map((p) => {
-          const runtime = state.inputs?.find((v) => v.name === p.name) || state.outputs?.find((v) => v.name === p.name);
-          return (
-            <div key={p.name} className="fn-param">
-              <span>{p.direction === 'in' ? '→' : '←'}</span>
-              <span>{p.name}</span>
-              <span>{runtime ? formatValue(runtime.value) : p.type}</span>
+      {inputRows.length > 0 && (
+        <div className="fn-rows">
+          {inputRows.map((row, i) => (
+            <div className="fn-row fn-row-in" key={`in-${i}`}>
+              <span className="row-dot">◆</span>
+              <span className="row-name">{row.name}</span>
+              <span className="row-val">{row.sensitive ? '••••••' : row.val}</span>
             </div>
-          );
-        })}
+          ))}
+        </div>
+      )}
 
-        {state.error && <div className="fn-error">{state.error}</div>}
-      </div>
+      {outputRows.length > 0 && (
+        <div className="fn-rows fn-rows-out">
+          {outputRows.map((row, i) => (
+            <div className="fn-row fn-row-out" key={`out-${i}`}>
+              <span className="row-dot">◇</span>
+              <span className="row-name">{row.name}</span>
+              <span className="row-val">{row.sensitive ? '••••••' : row.val}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {state.error && (
+        <div className="fn-error">{state.error}</div>
+      )}
 
       <Handle type="source" position={Position.Right} className="fn-handle" />
     </div>

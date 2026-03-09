@@ -13,13 +13,17 @@ from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketD
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai.fix_suggester import suggest_fix
+from pydantic import BaseModel
 from .models.schema import (
     SCHEMA_VERSION,
     ApiEnvelope,
     FixRequest,
     IngestedSpan,
+    IntentOccurrence,
     ParsedRepo,
     ParseRequest,
+    TraceEvent,
+    TraceEventType,
     TraceIngestRequest,
     TraceMode,
     TraceSession,
@@ -31,7 +35,9 @@ from .services.intent_fusion import rank_intents, update_occurrence_stats
 from .services.metadata_store import create_metadata_store
 from .services.otel import get_otel_state, setup_otel
 from .services.trace_context import is_otel_enabled, new_span_id, new_trace_id, parse_traceparent
+from .tracer.correlator import Correlator
 from .tracer.otel_bridge import emit_otel_span_trace
+from .tracer.process_runner import ProcessRunner
 from .tracer.simulator import run_simulated_trace
 from .tracer.websocket_emitter import WSEmitter
 
@@ -53,6 +59,14 @@ pending_trace_requests: dict[str, dict[str, Any]] = {}
 ingested_spans_by_trace: dict[str, list[IngestedSpan]] = {}
 ingested_spans_by_session: dict[str, list[IngestedSpan]] = {}
 metadata_store = create_metadata_store()
+
+# Live tracer state
+# key = repo_key, value = ProcessRunner for the running traced process
+active_runners: dict[str, ProcessRunner] = {}
+# key = session_id, value = list of raw event dicts waiting to be correlated
+live_raw_events: dict[str, list[dict]] = {}
+# key = session_id, value = asyncio.Event — set when first batch of live events arrives
+live_event_signals: dict[str, asyncio.Event] = {}
 
 
 
@@ -464,6 +478,252 @@ async def trace_websocket(websocket: WebSocket, session_id: str) -> None:
     except Exception as exc:
         session.status = "error"
         await _send_ws_error(emitter, session_id, str(exc))
+
+
+class RunnerStartRequest(BaseModel):
+    repo: str
+    command: list[str]          # e.g. ["python", "-m", "uvicorn", "main:app"]
+    project_root: str           # absolute local path to the cloned repo
+    session_id: str             # the intent session to associate with this process
+
+
+@app.post("/runner/start")
+async def runner_start(req: RunnerStartRequest) -> ApiEnvelope:
+    """
+    Launch the user's Python app with the CodeFlow tracer injected.
+    The process runs until /runner/stop is called or it exits on its own.
+    """
+    key = _normalize_repo_input(req.repo).lower().strip()
+    if not repo_cache.get(key):
+        raise HTTPException(status_code=404, detail="Repository not parsed. Call /parse first.")
+
+    # Stop any existing runner for this repo
+    existing = active_runners.get(key)
+    if existing and existing.is_running:
+        await existing.stop()
+
+    ingest_ws = "ws://127.0.0.1:8000/ws/tracer/ingest"
+    runner = ProcessRunner(
+        project_root=req.project_root,
+        repo_key=key,
+        ingest_ws_url=ingest_ws,
+    )
+    pid = await runner.start(req.command, req.session_id)
+    active_runners[key] = runner
+
+    # Pre-allocate event buffers for this session
+    live_raw_events[req.session_id] = []
+    live_event_signals[req.session_id] = asyncio.Event()
+
+    return envelope({
+        "pid": pid,
+        "repo": key,
+        "session_id": req.session_id,
+        "ingest_ws": ingest_ws,
+        "status": "running",
+    })
+
+
+@app.post("/runner/stop")
+async def runner_stop(repo: str) -> ApiEnvelope:
+    key = _normalize_repo_input(repo).lower().strip()
+    runner = active_runners.get(key)
+    if not runner:
+        raise HTTPException(status_code=404, detail="No active runner for this repo.")
+    await runner.stop()
+    return envelope({"repo": key, "status": "stopped"})
+
+
+@app.get("/runner/status")
+async def runner_status(repo: str) -> ApiEnvelope:
+    key = _normalize_repo_input(repo).lower().strip()
+    runner = active_runners.get(key)
+    if not runner:
+        return envelope({"repo": key, "status": "not_started", "pid": None})
+    return envelope({
+        "repo": key,
+        "status": "running" if runner.is_running else "exited",
+        "pid": runner.pid,
+    })
+
+
+@app.websocket("/ws/tracer/ingest")
+async def tracer_ingest_ws(websocket: WebSocket) -> None:
+    """
+    WebSocket endpoint that receives raw event batches from the in-process tracer.
+    The tracer (python_sys_tracer.py running inside the user's app) connects here
+    and sends JSON payloads of the form:
+        {"session_id": "...", "events": [{raw_event}, ...]}
+
+    This handler:
+    1. Accepts the connection
+    2. Buffers raw events into live_raw_events[session_id]
+    3. Signals any waiting /ws/trace/{session_id} handler that events have arrived
+    """
+    await websocket.accept()
+    try:
+        async for message in websocket.iter_text():
+            try:
+                payload = json.loads(message)
+            except json.JSONDecodeError:
+                continue
+
+            session_id: str = payload.get("session_id", "")
+            raw_events: list[dict] = payload.get("events") or []
+
+            if not session_id or not raw_events:
+                continue
+
+            # Buffer events
+            if session_id not in live_raw_events:
+                live_raw_events[session_id] = []
+            live_raw_events[session_id].extend(raw_events)
+
+            # Signal the WS trace handler that new events are available
+            sig = live_event_signals.get(session_id)
+            if sig:
+                sig.set()
+
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws/trace/live/{session_id}")
+async def trace_live_websocket(websocket: WebSocket, session_id: str) -> None:
+    """
+    Like /ws/trace/{session_id} but for live tracer mode.
+    Waits for real events from the tracer, correlates them, and streams
+    TraceEvent frames to the frontend — same wire format as the simulator.
+    """
+    await websocket.accept()
+    emitter = WSEmitter(websocket)
+
+    session = trace_sessions.get(session_id)
+    request = pending_trace_requests.get(session_id)
+
+    if not session or not request:
+        await _send_ws_error(emitter, session_id, "No pending trace session found.")
+        await websocket.close(code=1008)
+        return
+
+    key = request["repo"]
+    parsed = repo_cache.get(key)
+    intent = next((i for i in parsed.intents if i.id == request["intent_id"]), None) if parsed else None
+
+    if not parsed or not intent:
+        await _send_ws_error(emitter, session_id, "Repo or intent no longer cached.")
+        await websocket.close(code=1008)
+        return
+
+    project_root = request.get("project_root", "")
+    correlator = Correlator(parsed, project_root)
+
+    # Ensure event buffers exist
+    if session_id not in live_raw_events:
+        live_raw_events[session_id] = []
+    if session_id not in live_event_signals:
+        live_event_signals[session_id] = asyncio.Event()
+
+    session.status = "running"
+    sequence = 0
+
+    # Emit intent_start frame
+    intent_start = TraceEvent(
+        event_type=TraceEventType.INTENT_START,
+        fn_id=intent.handler_fn_id,
+        fn_name=intent.label,
+        file=intent.source_file,
+        line=0,
+        timestamp_ms=0.0,
+        sequence=sequence,
+        trace_id=session.trace_id,
+        span_id=session.root_span_id or uuid.uuid4().hex[:16],
+        service_name="codeflow-live",
+        attributes={"intent_id": intent.id},
+    )
+    sequence += 1
+    await emitter.emit(_live_frame(session_id, "trace_event", intent_start.model_dump()))
+
+    emitted_count = 0
+    already_sent = 0
+
+    try:
+        # Stream events as they arrive. Stop when:
+        # - WebSocket disconnects
+        # - 30s timeout with no new events (intent window closed)
+        deadline = 30.0
+        idle = 0.0
+
+        while idle < deadline:
+            sig = live_event_signals[session_id]
+            try:
+                await asyncio.wait_for(asyncio.shield(sig.wait()), timeout=1.0)
+                sig.clear()
+            except asyncio.TimeoutError:
+                idle += 1.0
+                if not live_raw_events.get(session_id):
+                    continue
+                # If there are pending events even without a signal, process them
+            else:
+                idle = 0.0  # reset idle timer on any activity
+
+            raw_batch = live_raw_events.get(session_id, [])
+            new_events = raw_batch[already_sent:]
+            already_sent += len(new_events)
+
+            for raw in new_events:
+                te = correlator.correlate(raw, session, sequence)
+                if te is None:
+                    continue
+                sequence += 1
+                session.events.append(te)
+                await emitter.emit(_live_frame(session_id, "trace_event", te.model_dump()))
+                emitted_count += 1
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        # Cleanup
+        live_raw_events.pop(session_id, None)
+        live_event_signals.pop(session_id, None)
+
+        session.status = "success" if session.status == "running" else session.status
+        session.total_duration_ms = float(
+            session.events[-1].timestamp_ms if session.events else 0.0
+        )
+
+        await emitter.emit({
+            "schema_version": SCHEMA_VERSION,
+            "session_id": session_id,
+            "timestamp_ms": session.total_duration_ms,
+            "type": "trace_complete",
+            "total_duration_ms": session.total_duration_ms,
+            "event_count": emitted_count,
+        })
+
+        occurrence = IntentOccurrence(
+            occurrence_id=str(uuid.uuid4()),
+            repo=parsed.repo,
+            intent_id=intent.id,
+            trace_id=session.trace_id,
+            session_id=session_id,
+            outcome="error" if session.status == "error" else "success",
+            latency_ms=session.total_duration_ms,
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        await metadata_store.save_occurrence(occurrence)
+        pending_trace_requests.pop(session_id, None)
+
+
+def _live_frame(session_id: str, msg_type: str, payload: dict) -> dict:
+    import time as _time
+    return {
+        "timestamp_ms": _time.time() * 1000,
+        "schema_version": SCHEMA_VERSION,
+        "session_id": session_id,
+        "type": msg_type,
+        "event": payload,
+    }
 
 
 if __name__ == "__main__":

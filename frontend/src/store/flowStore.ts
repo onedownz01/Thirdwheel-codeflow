@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type {
   BlockState,
-  FixSuggestion,
   Intent,
   ParsedRepo,
   TraceEvent,
@@ -30,9 +29,6 @@ interface FlowStore {
   sessionId: string | null;
   traceId: string | null;
 
-  fixSuggestion: FixSuggestion | null;
-  isFixLoading: boolean;
-
   setRepo: (repo: ParsedRepo) => void;
   addRepoHistory: (repoName: string) => void;
   setIntents: (intents: Intent[]) => void;
@@ -47,9 +43,6 @@ interface FlowStore {
   togglePlayback: () => void;
   requestFitView: () => void;
   resetTrace: () => void;
-
-  setFixSuggestion: (fix: FixSuggestion | null) => void;
-  setFixLoading: (loading: boolean) => void;
 }
 
 function buildInitialBlockStates(repo: ParsedRepo, activeIntent: Intent | null): Record<string, BlockState> {
@@ -130,9 +123,6 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   sessionId: null,
   traceId: null,
 
-  fixSuggestion: null,
-  isFixLoading: false,
-
   setRepo: (repo) =>
     set({
       repo,
@@ -172,7 +162,6 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       playbackIndex: 0,
       isPlaying: false,
       totalSteps: 0,
-      fixSuggestion: null,
       error: null,
       traceWarning: null,
     });
@@ -242,11 +231,8 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       sessionId: null,
       traceId: null,
       blockStates: repo ? buildInitialBlockStates(repo, null) : {},
-      fixSuggestion: null,
       traceWarning: null,
     });
   },
 
-  setFixSuggestion: (fixSuggestion) => set({ fixSuggestion }),
-  setFixLoading: (isFixLoading) => set({ isFixLoading }),
 }));

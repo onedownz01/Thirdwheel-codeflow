@@ -1,11 +1,7 @@
 import { PlaybackScrubber } from './PlaybackScrubber';
 import { useFlowStore } from '../../store/flowStore';
 
-interface TracePanelProps {
-  onRequestFix: () => Promise<void>;
-}
-
-export function TracePanel({ onRequestFix }: TracePanelProps) {
+export function TracePanel() {
   const {
     traceEvents,
     isTracing,
@@ -13,11 +9,7 @@ export function TracePanel({ onRequestFix }: TracePanelProps) {
     activeIntent,
     sessionId,
     traceId,
-    fixSuggestion,
-    isFixLoading,
   } = useFlowStore();
-
-  const latestError = [...traceEvents].reverse().find((e) => e.event_type === 'error');
 
   return (
     <aside className="trace-panel">
@@ -43,21 +35,6 @@ export function TracePanel({ onRequestFix }: TracePanelProps) {
           </div>
         ))}
       </div>
-
-      {latestError && (
-        <button className="primary-btn" onClick={onRequestFix} disabled={isFixLoading}>
-          {isFixLoading ? 'Generating fix...' : 'Fix with AI'}
-        </button>
-      )}
-
-      {fixSuggestion && (
-        <div className="fix-card">
-          <div className="fix-title">AI Fix ({fixSuggestion.confidence})</div>
-          <div>{fixSuggestion.explanation}</div>
-          <div>{fixSuggestion.fix}</div>
-          {fixSuggestion.code_diff && <pre>{fixSuggestion.code_diff}</pre>}
-        </div>
-      )}
     </aside>
   );
 }
