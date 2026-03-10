@@ -36,6 +36,12 @@ ARGPARSE_SUBPARSER_PATTERN = re.compile(
     r"\.add_parser\(\s*['\"`]([^'\"`]+)['\"`]",
     re.IGNORECASE,
 )
+# Flat ArgumentParser scripts (not subcommand-style)
+ARGPARSE_MAIN_PATTERN = re.compile(r"ArgumentParser\s*\(", re.IGNORECASE)
+MAIN_GUARD_PATTERN = re.compile(r"if\s+__name__\s*==\s*['\"]__main__['\"]")
+ADD_ARGUMENT_FLAG_PATTERN = re.compile(r'\.add_argument\(\s*[\'\"](--[a-zA-Z_-]+)[\'\"]\s*')
+# Top-level class definitions
+CLASS_DEF_PATTERN = re.compile(r"^class (\w+)", re.MULTILINE)
 
 
 def parse_python_file(path: str, content: str) -> tuple[list[ParsedFunction], list[Intent]]:
@@ -64,6 +70,8 @@ def parse_python_file(path: str, content: str) -> tuple[list[ParsedFunction], li
 
     walk(tree.root_node)
     intents.extend(_extract_argparse_intents(path, content))
+    intents.extend(_extract_script_intents(path, content))
+    intents.extend(_extract_class_api_intents(path, content, functions))
 
     return functions, intents
 
@@ -388,3 +396,156 @@ def _route_path_from_args(args: str) -> str:
 def _slug(value: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9]+", ".", value).strip(".").lower()
     return s or "root"
+
+
+def _extract_script_intents(path: str, content: str) -> list[Intent]:
+    """Intent for __main__ scripts that use flat ArgumentParser (not subcommands).
+
+    This covers scripts like:
+        if __name__ == "__main__":
+            parser = argparse.ArgumentParser()
+            parser.add_argument("--input", ...)
+    which the add_parser() subcommand detector misses entirely.
+    """
+    # Must have a __main__ guard AND an ArgumentParser call.
+    if not MAIN_GUARD_PATTERN.search(content):
+        return []
+    if not ARGPARSE_MAIN_PATTERN.search(content):
+        return []
+    # Already handled by the subcommand extractor — don't double-count.
+    if ARGPARSE_SUBPARSER_PATTERN.search(content):
+        return []
+
+    flags = ADD_ARGUMENT_FLAG_PATTERN.findall(content)
+    flags_str = " ".join(flags[:4])
+
+    script_name = path.rsplit("/", 1)[-1].replace(".py", "")
+    label = f"python {script_name}.py"
+    if flags_str:
+        label += f"  {flags_str}"
+
+    return [
+        Intent(
+            id=f"intent:{path}:__main__:0",
+            canonical_id=f"cli.script.{_slug(script_name)}",
+            label=label,
+            icon="⌨",
+            trigger=f"cli:{script_name}",
+            handler_fn_id=f"{path}:__main__:0",
+            source_file=path,
+            group="Scripts",
+            status="candidate",
+            confidence=0.62,
+            evidence=[
+                IntentEvidence(
+                    kind=EvidenceKind.CLI_COMMAND,
+                    source_file=path,
+                    line=1,
+                    symbol=script_name,
+                    excerpt=f"python {path} {flags_str}".strip(),
+                    weight=0.62,
+                )
+            ],
+            aliases=[script_name],
+        )
+    ]
+
+
+def _extract_class_api_intents(
+    path: str, content: str, fns: list[ParsedFunction]
+) -> list[Intent]:
+    """Generate intent candidates for public methods of named classes.
+
+    This surfaces the public API of library-style repos that have no HTTP routes
+    or CLI commands — e.g. a RAG library with a MyRAG class.
+
+    Confidence is deliberately low (0.55) so these rank below real routes/CLI
+    intents when both exist.  For a pure library repo they'll be the primary intents.
+
+    Async/sync pairs (insert/ainsert, query/aquery) are deduplicated: the sync
+    version is kept as the canonical intent; the label notes async availability.
+    """
+    class_matches = list(CLASS_DEF_PATTERN.finditer(content))
+    if not class_matches:
+        return []
+
+    total_lines = content.count("\n") + 1
+    intents: list[Intent] = []
+
+    for i, cm in enumerate(class_matches):
+        class_start = content[: cm.start()].count("\n") + 1
+        class_end = (
+            content[: class_matches[i + 1].start()].count("\n")
+            if i + 1 < len(class_matches)
+            else total_lines
+        )
+        class_name = cm.group(1)
+
+        # Skip infrastructure / abstract classes that aren't user-facing entry points.
+        # Base* → abstract interfaces; *Error/*Exception/*Warning → exception hierarchy;
+        # *Format/*Schema → data models; *Encoder/*Decoder → serialization utilities.
+        _cn = class_name.lower()
+        if (
+            class_name.startswith("Base")
+            or _cn.endswith(("error", "exception", "warning"))
+            or _cn.endswith(("format", "schema", "encoder", "decoder"))
+        ):
+            continue
+
+        # Public methods whose definition line falls inside this class's line range.
+        methods = [
+            fn
+            for fn in fns
+            if fn.file == path
+            and class_start < fn.line <= class_end
+            and not fn.name.startswith("_")
+        ]
+
+        if len(methods) < 3:
+            # Tiny class — not a meaningful API surface worth surfacing as intents.
+            continue
+
+        method_names = {fn.name for fn in methods}
+
+        # Deduplicate async variants: keep sync; label it "/ async" if async exists.
+        deduped: list[ParsedFunction] = []
+        for fn in methods:
+            # e.g. ainsert -> check if "insert" exists; aquery -> "query", etc.
+            if fn.name.startswith("a") and fn.name[1:] in method_names:
+                continue  # async variant; the sync form is the canonical entry
+            deduped.append(fn)
+
+        for fn in deduped[:10]:
+            async_variant = f"a{fn.name}"
+            has_async = async_variant in method_names
+            label = f"{class_name}.{fn.name}()"
+            if has_async:
+                label += " / async"
+
+            intents.append(
+                Intent(
+                    id=f"intent:{fn.file}:{fn.name}:{fn.line}",
+                    canonical_id=f"api.{_slug(class_name)}.{_slug(fn.name)}",
+                    label=label,
+                    icon="◈",
+                    trigger=f"api:{class_name}.{fn.name}",
+                    handler_fn_id=fn.id,
+                    source_file=fn.file,
+                    group=class_name,
+                    status="candidate",
+                    confidence=0.55,
+                    evidence=[
+                        IntentEvidence(
+                            kind=EvidenceKind.SYMBOL_HEURISTIC,
+                            source_file=fn.file,
+                            line=fn.line,
+                            symbol=f"{class_name}.{fn.name}",
+                            excerpt=f"class {class_name}: def {fn.name}()",
+                            weight=0.55,
+                        )
+                    ],
+                    aliases=[fn.name, f"{class_name}.{fn.name}"],
+                )
+            )
+
+    return intents
