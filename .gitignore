@@ -3,6 +3,10 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.local
+.env.production
+.env.staging
+!.env.example
 
 node_modules/
 dist/
@@ -12,3 +16,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+.claude/
+
+.logs/
+*.log

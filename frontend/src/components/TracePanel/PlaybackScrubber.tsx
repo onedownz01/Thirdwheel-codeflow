@@ -11,12 +11,8 @@ export function PlaybackScrubber() {
     togglePlayback,
   } = useFlowStore();
 
-  if (!traceComplete || traceEvents.length === 0) return null;
-
-  const current = playbackIndex > 0 ? traceEvents[playbackIndex - 1] : null;
-
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || !traceComplete || traceEvents.length === 0) return;
     const id = window.setInterval(() => {
       const state = useFlowStore.getState();
       if (state.playbackIndex >= traceEvents.length) {
@@ -26,12 +22,16 @@ export function PlaybackScrubber() {
       state.setPlaybackIndex(state.playbackIndex + 1);
     }, 220);
     return () => window.clearInterval(id);
-  }, [isPlaying, traceEvents.length]);
+  }, [isPlaying, traceComplete, traceEvents.length]);
+
+  if (!traceComplete || traceEvents.length === 0) return null;
+
+  const current = playbackIndex > 0 ? traceEvents[playbackIndex - 1] : null;
 
   return (
     <div className="scrubber">
       <div className="scrubber-top">
-        <span>Reverse Playback</span>
+        <span>Timeline</span>
         <span>
           {playbackIndex}/{traceEvents.length}
         </span>

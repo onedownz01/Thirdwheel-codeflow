@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import type { TraceHeaders } from './useTraceContext';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = 'http://127.0.0.1:8001';
 
 function printable(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -66,11 +66,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function useApi() {
   return {
-    parseRepo: (repo: string, token?: string, traceHeaders?: TraceHeaders) =>
+    parseRepo: (repo: string, token?: string, traceHeaders?: TraceHeaders, bustCache = false) =>
       request<ParsedRepo>('/parse', {
         method: 'POST',
         headers: traceHeaders ? { traceparent: traceHeaders.traceparent } : undefined,
-        body: JSON.stringify({ repo, token: token || undefined }),
+        body: JSON.stringify({ repo, token: token || undefined, bust_cache: bustCache }),
       }),
 
     getIntents: (repo: string) =>

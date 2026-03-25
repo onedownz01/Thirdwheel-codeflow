@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import ReactFlow, {
-  Background,
   Controls,
   MiniMap,
   ReactFlowProvider,
@@ -49,7 +48,7 @@ async function layoutGraph(nodes: Node[], edges: Edge[]): Promise<Node[]> {
 }
 
 function FlowCanvasInner() {
-  const { repo, blockStates, activeIntent, fitViewNonce } = useFlowStore();
+  const { repo, blockStates, activeIntent, fitViewNonce, isLoading, loadingStep } = useFlowStore();
   const flow = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -97,13 +96,22 @@ function FlowCanvasInner() {
       return;
     }
 
+    const flowIds = Array.from(flowSet);
     const runId = ++layoutRunRef.current;
     layoutGraph(nextNodes, nextEdges).then((layoutedNodes) => {
       if (runId !== layoutRunRef.current) return;
       setNodes(layoutedNodes);
       setEdges(nextEdges);
+      // Two rAF passes: first lets React commit, second lets ReactFlow measure
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (flowIds.length > 0) {
+          flow.fitView({ padding: 0.3, duration: 700, nodes: flowIds.map((id) => ({ id })) });
+        } else {
+          flow.fitView({ padding: 0.12, duration: 500 });
+        }
+      }));
     });
-  }, [repo, activeIntent, setNodes, setEdges]);
+  }, [repo, activeIntent, setNodes, setEdges, flow]);
 
   useEffect(() => {
     setNodes((curr) =>
@@ -119,11 +127,24 @@ function FlowCanvasInner() {
 
   useEffect(() => {
     if (!repo) return;
-    flow.fitView({ padding: 0.15, duration: 300 });
-  }, [fitViewNonce, flow, repo]);
+    const flowIds = activeIntent?.flow_ids ?? [];
+    requestAnimationFrame(() => {
+      if (flowIds.length > 0) {
+        flow.fitView({ padding: 0.25, duration: 600, nodes: flowIds.map((id) => ({ id })) });
+      } else {
+        flow.fitView({ padding: 0.12, duration: 500 });
+      }
+    });
+  }, [fitViewNonce, flow, repo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!repo) {
-    return <div className="canvas-empty">Parse a repository to see function graph.</div>;
+    return (
+      <div className="canvas-empty">
+        {isLoading
+          ? <span className="canvas-loading-text">{loadingStep || 'Parsing…'}<span className="blink">_</span></span>
+          : 'Parse a repository to see function graph.'}
+      </div>
+    );
   }
 
   return (
@@ -151,22 +172,21 @@ function FlowCanvasInner() {
         maxZoom={2}
         style={{ background: 'transparent' }}
       >
-        <Background color="#1e1e1e" gap={24} size={1} />
         <Controls />
         <MiniMap
           nodeColor={(n) => {
             const status = n.data?.state?.status;
-            if (status === 'calling') return '#00d4aa';
-            if (status === 'returned') return '#3a3a3a';
-            if (status === 'error') return '#e05252';
-            if (status === 'dimmed') return '#1a1a1a';
-            return '#252525';
+            if (status === 'calling') return 'rgba(255,255,255,0.7)';
+            if (status === 'returned') return 'rgba(255,255,255,0.15)';
+            if (status === 'error') return 'rgba(255,255,255,0.4)';
+            if (status === 'dimmed') return 'rgba(255,255,255,0.03)';
+            return 'rgba(255,255,255,0.07)';
           }}
-          maskColor="rgba(9, 9, 9, 0.72)"
+          maskColor="rgba(10, 10, 10, 0.75)"
           style={{
             background: '#111111',
-            border: '1px solid #222222',
-            borderRadius: 4,
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: 0,
           }}
         />
       </ReactFlow>
@@ -182,13 +202,12 @@ function styleEdges(sourceEdges: ParsedRepo['edges'], flowSet: Set<string>): Edg
       source: e.source,
       target: e.target,
       type: 'bezier',
-      animated: false,
+      animated: active,
       className: active ? 'edge-active' : 'edge-idle',
       style: {
-        stroke: active ? '#00d4aa' : '#252525',
-        strokeWidth: active ? 1.5 : 1,
+        stroke: active ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.07)',
+        strokeWidth: active ? 2 : 1,
         strokeLinecap: 'round',
-        opacity: active ? 1 : 1,
       },
     };
   });

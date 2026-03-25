@@ -54,8 +54,16 @@ def build_graph(
             intent.flow_ids = bfs_flow(entry.id, by_id, max_depth=10)
             intent.hop_count = len(intent.flow_ids)
         else:
-            intent.flow_ids = [intent.handler_fn_id]
-            intent.hop_count = 1
+            # Handler is likely a callback prop — find any function from same file as fallback
+            same_file_fns = [fn for fn in functions if fn.file == intent.source_file]
+            if same_file_fns:
+                entry = same_file_fns[0]
+                intent.handler_fn_id = entry.id
+                intent.flow_ids = bfs_flow(entry.id, by_id, max_depth=6)
+                intent.hop_count = len(intent.flow_ids)
+            else:
+                intent.flow_ids = []
+                intent.hop_count = 0
 
         resolved_intents.append(intent)
 

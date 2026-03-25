@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import type { BlockState, ParsedFunction } from '../../types';
+import { useFlowStore } from '../../store/flowStore';
 
 interface Props {
   data: {
@@ -11,6 +12,7 @@ interface Props {
 
 export const FunctionBlock = memo(({ data }: Props) => {
   const { fn, state } = data;
+  const { selectedNodeId, setSelectedNode } = useFlowStore();
 
   const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) return 'null';
@@ -34,8 +36,13 @@ export const FunctionBlock = memo(({ data }: Props) => {
     ? state.outputs.slice(0, 4).map((v) => ({ name: v.name, val: formatValue(v.value), sensitive: v.is_sensitive }))
     : [];
 
+  const isSelected = selectedNodeId === fn.id;
+
   return (
-    <div className={`fn-block state-${state.status}`}>
+    <div
+      className={`fn-block state-${state.status}${isSelected ? ' fn-block-selected' : ''}`}
+      onClick={() => setSelectedNode(isSelected ? null : fn.id)}
+    >
       <Handle type="target" position={Position.Left} className="fn-handle" />
 
       <div className="fn-header">

@@ -68,7 +68,7 @@ function App() {
         setLoading(true, 'Fetching + parsing repository');
         const normalized = normalizeRepoInput(repoName);
         setRepoInput(normalized);
-        const parsed = await api.parseRepo(normalized, undefined, traceContext.newHeaders());
+        const parsed = await api.parseRepo(normalized, undefined, traceContext.newHeaders(), true);
         setRepo(parsed);
         addRepoHistory(parsed.repo);
 
@@ -145,6 +145,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      {isLoading && <div className="loading-bar" />}
       <TopBar
         repo={repoName}
         onParse={parseRepo}
@@ -166,7 +167,6 @@ function App() {
         </aside>
         <main className="canvas-panel">
           {error && <div className="error-banner">{error}</div>}
-          {traceWarning && <div className="warning-banner">{traceWarning}</div>}
           <FlowCanvas />
         </main>
         <aside className="sidebar-right">

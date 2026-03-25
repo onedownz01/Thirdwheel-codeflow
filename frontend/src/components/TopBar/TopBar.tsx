@@ -82,13 +82,13 @@ export function TopBar({
         <option value="live">Live</option>
       </select>
       {traceMode !== 'live' && (
-        <label className="sim-toggle">
+        <label className="sim-toggle" title="Simulate error at step 2">
           <input
             type="checkbox"
             checked={simulateError}
             onChange={(e) => onToggleSimError(e.target.checked)}
           />
-          err
+          <span className="sim-toggle-label">err</span>
         </label>
       )}
     </header>

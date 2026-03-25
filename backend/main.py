@@ -192,7 +192,10 @@ async def parse_repo(payload: Annotated[Any, Body()]) -> ApiEnvelope:
     req = _coerce_parse_request(payload)
     normalized_repo = _normalize_repo_input(req.repo)
     key = normalized_repo.lower().strip()
-    if key in repo_cache:
+    bust = getattr(req, "bust_cache", False) or (
+        isinstance(payload, dict) and payload.get("bust_cache", False)
+    )
+    if key in repo_cache and not bust:
         return envelope(repo_cache[key].model_dump())
 
     try:

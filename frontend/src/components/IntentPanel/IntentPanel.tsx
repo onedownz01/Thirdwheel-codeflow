@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Intent } from '../../types';
 
 interface IntentPanelProps {
@@ -13,7 +14,13 @@ function confidenceBadge(confidence: number): string {
 }
 
 export function IntentPanel({ intents, activeIntentId, onRunIntent }: IntentPanelProps) {
-  const grouped = intents.reduce<Record<string, Intent[]>>((acc, intent) => {
+  const [query, setQuery] = useState('');
+
+  const filtered = query.trim()
+    ? intents.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()))
+    : intents;
+
+  const grouped = filtered.reduce<Record<string, Intent[]>>((acc, intent) => {
     const key = intent.group || 'Actions';
     if (!acc[key]) acc[key] = [];
     acc[key].push(intent);
@@ -25,10 +32,27 @@ export function IntentPanel({ intents, activeIntentId, onRunIntent }: IntentPane
   return (
     <section className="intent-panel">
       <div className="panel-title">Intents</div>
+      {intents.length > 0 && (
+        <div className="intent-search-wrap">
+          <input
+            className="intent-search"
+            placeholder="filter intents…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            spellCheck={false}
+          />
+          {query && (
+            <button className="intent-search-clear" onClick={() => setQuery('')}>✕</button>
+          )}
+        </div>
+      )}
       <div className="intent-list">
         {intents.length === 0 && <div className="empty">No intents found yet.</div>}
+        {filtered.length === 0 && intents.length > 0 && (
+          <div className="empty">No match for "{query}"</div>
+        )}
         {groups.map(([group, groupIntents], idx) => (
-          <details key={group} className="intent-group" open={idx < 2}>
+          <details key={group} className="intent-group" open={idx < 2 || !!query}>
             <summary>
               <span>{group}</span>
               <span className="intent-group-count">{groupIntents.length}</span>

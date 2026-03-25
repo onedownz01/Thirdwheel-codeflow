@@ -29,6 +29,9 @@ interface FlowStore {
   sessionId: string | null;
   traceId: string | null;
 
+  selectedNodeId: string | null;
+  setSelectedNode: (id: string | null) => void;
+
   setRepo: (repo: ParsedRepo) => void;
   addRepoHistory: (repoName: string) => void;
   setIntents: (intents: Intent[]) => void;
@@ -122,6 +125,9 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
 
   sessionId: null,
   traceId: null,
+
+  selectedNodeId: null,
+  setSelectedNode: (id) => set({ selectedNodeId: id }),
 
   setRepo: (repo) =>
     set({

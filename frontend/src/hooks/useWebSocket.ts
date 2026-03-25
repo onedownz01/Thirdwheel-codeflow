@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { useFlowStore } from '../store/flowStore';
 
-const WS_BASE = 'ws://127.0.0.1:8000';
+const WS_BASE = 'ws://127.0.0.1:8001';
 
 export function useTraceSocket() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -21,7 +21,11 @@ export function useTraceSocket() {
         if (msg.type === 'trace_event' && msg.event) {
           applyTraceEvent(msg.event);
         } else if (msg.type === 'trace_warning') {
-          setTraceWarning(msg.warning || 'unknown warning');
+          const reason = msg.warning
+            || msg.event?.attributes?.reason
+            || msg.event?.fn_name
+            || 'Missing function in graph';
+          setTraceWarning(reason);
         } else if (msg.type === 'trace_complete') {
           completeTrace();
         } else if (msg.type === 'trace_error') {

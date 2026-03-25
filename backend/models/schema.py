@@ -188,6 +188,7 @@ class FixSuggestion(BaseModel):
 class ParseRequest(BaseModel):
     repo: str
     token: Optional[str] = None
+    bust_cache: bool = False
 
 
 class TraceStartRequest(BaseModel):

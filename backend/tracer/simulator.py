@@ -83,7 +83,11 @@ async def run_simulated_trace(
             )
             sequence += 1
             session.events.append(warning)
-            await emit(_frame(session.session_id, "trace_warning", {"event": warning.model_dump(), "schema_version": session.schema_version}))
+            await emit(_frame(session.session_id, "trace_warning", {
+                "warning": f"Function '{fn_id}' not found in parsed repo — skipped",
+                "event": warning.model_dump(),
+                "schema_version": session.schema_version,
+            }))
             continue
 
         now_ms = (time.perf_counter() - started) * 1000
@@ -138,7 +142,7 @@ async def run_simulated_trace(
             break
 
         delay_ms = TIMING_MS.get(fn.type.value, TIMING_MS["other"])
-        await asyncio.sleep((delay_ms + 140) / 1000)
+        await asyncio.sleep((delay_ms + 700) / 1000)
 
         done_ms = (time.perf_counter() - started) * 1000
         ret_event = TraceEvent(
@@ -226,44 +230,104 @@ def _simulated_inputs(params, step_idx: int) -> list[RuntimeValue]:
     if params:
         in_params = [p for p in params if p.direction == "in"][:5]
         for p in in_params:
-            values.append(
-                RuntimeValue(
-                    name=p.name,
-                    value=_sample_value(p.type, step_idx),
-                    type_name=p.type or "any",
-                    is_sensitive=False,
-                )
-            )
+            sensitive = _is_sensitive(p.name)
+            values.append(RuntimeValue(
+                name=p.name,
+                value=_realistic_value(p.name, p.type, step_idx),
+                type_name=p.type or "any",
+                is_sensitive=sensitive,
+            ))
         if values:
             return values
-    return [RuntimeValue(name="context", value=f"step_{step_idx}", type_name="str", is_sensitive=False)]
+    return [RuntimeValue(name="event", value={"type": "click", "timestamp": 1711360200000}, type_name="object", is_sensitive=False)]
 
 
 def _simulated_outputs(params, step_idx: int) -> list[RuntimeValue]:
     values: list[RuntimeValue] = []
     out_params = [p for p in params if p.direction == "out"][:4]
     for p in out_params:
-        values.append(
-            RuntimeValue(
-                name=p.name,
-                value=_sample_value(p.type, step_idx + 1),
-                type_name=p.type or "any",
-                is_sensitive=False,
-            )
-        )
+        values.append(RuntimeValue(
+            name=p.name,
+            value=_realistic_value(p.name, p.type, step_idx + 1),
+            type_name=p.type or "any",
+            is_sensitive=False,
+        ))
     if values:
         return values
-    return [RuntimeValue(name="result", value=f"ok_{step_idx}", type_name="str", is_sensitive=False)]
+    return [RuntimeValue(name="result", value={"success": True, "status": 200}, type_name="object", is_sensitive=False)]
 
 
-def _sample_value(type_name: str, seed: int):
-    t = (type_name or "any").lower()
-    if "int" in t or "number" in t:
+def _is_sensitive(name: str) -> bool:
+    n = name.lower()
+    return any(k in n for k in ("password", "secret", "token", "key", "auth", "credential"))
+
+
+def _realistic_value(name: str, type_name: str, seed: int):
+    """Generate realistic-looking values based on parameter name semantics."""
+    n = name.lower()
+    t = (type_name or "").lower()
+
+    # Identity / user
+    if any(k in n for k in ("userid", "user_id", "uid", "ownerId", "owner_id")):
+        return f"usr_{['a1b2c3', 'd4e5f6', 'x7y8z9'][seed % 3]}"
+    if "email" in n:
+        return ["alice@example.com", "bob@acme.io", "carol@dev.co"][seed % 3]
+    if n in ("name", "username", "fullname", "full_name", "displayname"):
+        return ["Alice Chen", "Bob Martinez", "Carol Singh"][seed % 3]
+    if "firstname" in n or "first_name" in n:
+        return ["Alice", "Bob", "Carol"][seed % 3]
+    if "lastname" in n or "last_name" in n:
+        return ["Chen", "Martinez", "Singh"][seed % 3]
+
+    # Content / text
+    if any(k in n for k in ("content", "body", "message", "text", "description", "note")):
+        return ["Remember to follow up on the API integration.", "Meeting notes from sync call.", "Draft: Quarterly review summary."][seed % 3]
+    if any(k in n for k in ("title", "label", "heading", "subject")):
+        return ["Q4 Planning", "API Migration", "Sprint Review"][seed % 3]
+    if any(k in n for k in ("query", "search", "q", "keyword")):
+        return ["machine learning", "API authentication", "react hooks"][seed % 3]
+    if "url" in n or "endpoint" in n or "href" in n:
+        return ["https://api.example.com/v1/data", "https://cdn.assets.io/img/hero.png"][seed % 2]
+    if "path" in n or "route" in n:
+        return ["/api/v1/users", "/dashboard/settings", "/auth/callback"][seed % 3]
+
+    # IDs
+    if any(k in n for k in ("id", "_id", "uuid", "sessionid", "traceid")):
+        return f"{['f3a1b2c4', 'e5d6c7b8', 'a9b8c7d6'][seed % 3]}-{'abcd'}-{'1234'}"
+    if any(k in n for k in ("tag", "label", "category", "group")):
+        return [["web", "api", "v2"], ["auth", "session"], ["draft", "pending"]][seed % 3]
+
+    # Numbers / pagination
+    if any(k in n for k in ("page", "offset", "skip")):
         return seed
+    if any(k in n for k in ("limit", "count", "size", "max")):
+        return [10, 25, 50][seed % 3]
+    if any(k in n for k in ("index", "idx", "position", "rank")):
+        return seed - 1
+
+    # Booleans
+    if any(k in n for k in ("enabled", "active", "isvalid", "valid", "success", "visible", "open", "checked")):
+        return True
+    if any(k in n for k in ("error", "failed", "loading", "pending")):
+        return False
+
+    # Timestamps / dates
+    if any(k in n for k in ("timestamp", "createdat", "updatedat", "date", "time")):
+        return "2024-03-25T10:30:00Z"
+
+    # Sensitive
+    if _is_sensitive(n):
+        return "••••••••"
+
+    # Type-based fallback
     if "bool" in t:
-        return bool(seed % 2)
-    if "dict" in t or "object" in t:
-        return {"step": seed}
+        return True
+    if "int" in t or "number" in t or "float" in t:
+        return seed * 10
     if "list" in t or "array" in t:
-        return [seed, seed + 1]
-    return f"{t}_value_{seed}"
+        return ["item_1", "item_2", "item_3"]
+    if "dict" in t or "object" in t:
+        return {"id": f"obj_{seed}", "status": "active"}
+
+    # Generic string fallback — use the param name as a hint
+    return f"<{name}>"
