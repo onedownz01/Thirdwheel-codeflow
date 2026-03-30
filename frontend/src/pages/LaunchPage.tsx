@@ -150,26 +150,9 @@ export default function LaunchPage() {
           Optional: set <span style={{ color: C.muted }}>GITHUB_TOKEN</span> in a .env file to avoid GitHub's 60 req/hr rate limit.
         </p>
 
-        {/* CTA */}
-        <div style={{ marginTop: 40, display: 'flex', gap: 1, alignItems: 'center' }}>
-          <button
-            onClick={() => navigate('/app')}
-            style={{
-              ...mono, background: C.text, color: C.bg,
-              border: 'none', cursor: 'pointer',
-              padding: '12px 28px', fontSize: 11,
-              fontWeight: 500, letterSpacing: '0.06em',
-              transition: 'opacity 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-          >
-            OPEN APP ↗
-          </button>
-          <span style={{ ...mono, fontSize: 10, color: C.dim, padding: '0 16px' }}>
-            make sure the backend is running first
-          </span>
-        </div>
+        <p style={{ ...mono, fontSize: 10, color: C.dim, lineHeight: 1.8, marginTop: 28, fontWeight: 300 }}>
+          Once running, open <span style={{ color: C.muted }}>http://localhost:5173</span>
+        </p>
       </div>
     </div>
   );
