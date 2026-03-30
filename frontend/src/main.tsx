@@ -5,6 +5,7 @@ import App from './App';
 import LandingPage from './pages/LandingPage';
 import BenchmarkPage from './pages/BenchmarkPage';
 import DocsPage from './pages/DocsPage';
+import LaunchPage from './pages/LaunchPage';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import './styles.css';
 
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/app" element={<App />} />
           <Route path="/benchmark" element={<BenchmarkPage />} />
           <Route path="/docs" element={<DocsPage />} />
+          <Route path="/launch" element={<LaunchPage />} />
           <Route path="*" element={<LandingPage />} />
         </Routes>
       </BrowserRouter>

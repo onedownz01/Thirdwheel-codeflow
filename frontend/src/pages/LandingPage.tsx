@@ -236,7 +236,7 @@ export default function LandingPage() {
           </div>
 
           <button
-            onClick={() => navigate('/app')}
+            onClick={() => navigate('/launch')}
             style={{
               ...mono, background: C.text, color: C.bg,
               border: 'none', cursor: 'pointer',
@@ -298,7 +298,7 @@ export default function LandingPage() {
 
                 <div style={{ display: 'flex', gap: 1 }}>
                   <button
-                    onClick={() => navigate('/app')}
+                    onClick={() => navigate('/launch')}
                     style={{
                       ...mono, background: C.text, color: C.bg,
                       border: 'none', cursor: 'pointer',
