@@ -66,15 +66,15 @@ function SectionDivider() {
 
 // ── Data ─────────────────────────────────────────────────────
 const FEATURES = [
-  { tag: 'PARSE',     title: 'Any GitHub repo',            body: 'Paste a URL. Tree-sitter parses the AST in seconds. Python and TypeScript/React both supported.' },
-  { tag: 'INTENTS',   title: 'Every user-facing action',   body: 'Routes, handlers, CLI commands, class APIs — surfaced as named Intents with confidence scores.' },
-  { tag: 'TRACE',     title: 'Full call chain, animated',  body: 'Click an intent. Watch the execution path animate across the graph. File, line, I/O on each block.' },
-  { tag: 'SIM',       title: 'Simulate without running',   body: 'No service needed. Codeflow walks the static call graph and generates a synthetic execution trace.' },
-  { tag: 'OTEL',      title: 'Live spans via OTel',        body: 'Receive OpenTelemetry spans from a running service. Real timing, real errors, real return values.' },
-  { tag: 'SETTRACE',  title: 'Zero-setup local attach',    body: 'Attach to a local process via sys.settrace. Every call, argument, and return — no instrumentation.' },
-  { tag: 'AGENTS',    title: 'Structured output for LLMs', body: 'ParsedRepo schema with fn_type_index and file_index. O(1) lookups. 36% fewer tokens on average.' },
-  { tag: 'BENCHMARK', title: 'Independently measured',     body: 'Gemini 2.5 Flash judges retention. 14 repos, 15k+ functions. psf/requests hits 90% retention.' },
-  { tag: 'MIT',       title: 'Open source',                body: 'Run locally. No accounts. No telemetry in Sim mode. The only external call is GitHub.' },
+  { tag: 'PARSE',     title: 'Paste a URL, get a graph',   body: 'Any public GitHub repo. Tree-sitter parses the AST. Python and TypeScript/React supported.' },
+  { tag: 'INTENTS',   title: 'Entry points, not file trees', body: 'Routes, handlers, CLI commands, class APIs — each is an Intent. That\'s where tracing starts.' },
+  { tag: 'TRACE',     title: 'Click an intent, see the path', body: 'Full call chain animates in the graph. File, line number, and I/O on every node.' },
+  { tag: 'SIM',       title: 'No server required',         body: 'Static graph walk. Follows calls from source and simulates the execution path.' },
+  { tag: 'OTEL',      title: 'Real spans from your service', body: 'Point your OTel exporter at Codeflow. Real timing, real errors, real return values.' },
+  { tag: 'SETTRACE',  title: 'Attach to a local process',  body: 'sys.settrace hooks into Python. Every call and return captured. No code changes.' },
+  { tag: 'AGENTS',    title: 'Structured output for agents', body: 'One JSON object: all functions, types, call edges, fn_type_index, file_index. 36% fewer tokens.' },
+  { tag: 'BENCHMARK', title: '14 repos, scored externally', body: 'Gemini 2.5 Flash judged 70 sampled functions. psf/requests: 90% retention. Avg: 69%.' },
+  { tag: 'MIT',       title: 'Self-host it',               body: 'No accounts. No telemetry in sim mode. The only network call is to GitHub.' },
 ];
 
 const BENCH = [
@@ -271,7 +271,7 @@ export default function LandingPage() {
                   marginBottom: 32,
                 }}>
                   <span style={{ color: C.text }}>◈</span>
-                  BENCHMARK REPORT — 14 REPOS
+                  BENCHMARK — 14 REPOS · 15K+ FUNCTIONS
                 </div>
 
                 <h1 style={{
@@ -292,8 +292,8 @@ export default function LandingPage() {
                   color: C.muted, lineHeight: 1.75,
                   marginBottom: 40, maxWidth: 420,
                 }}>
-                  Codeflow turns any GitHub repo into a structured execution graph.
-                  Every function, every call edge, every user-facing intent — 36% fewer tokens, 100% recall.
+                  Give it a GitHub repo. It maps every function, every call, every entry point.
+                  The output is a structured JSON your agent can actually use — not a pile of files.
                 </p>
 
                 <div style={{ display: 'flex', gap: 1 }}>
@@ -389,24 +389,23 @@ export default function LandingPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'start' }}>
               <div>
                 <h2 style={{ fontSize: 28, fontWeight: 300, color: C.text, marginBottom: 16, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                  Intent-anchored execution tracing
+                  Starts from what users actually do
                 </h2>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 16 }}>
-                  Most tools give you a file tree or a flat list of symbols. Codeflow starts from user-facing
-                  actions — routes, handlers, CLI commands — and builds a directed call graph from there.
+                  Most parsers give you a file tree. Codeflow starts from entry points — routes,
+                  handlers, CLI commands — and builds the call graph outward from there.
                 </p>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85 }}>
-                  Three trace modes: static simulation (no server needed),
-                  live sys.settrace attach, or real OpenTelemetry spans.
-                  Switch between them without changing your code.
+                  Three trace modes: static walk (no server), live sys.settrace attach, or real
+                  OTel spans. Same graph view for all three.
                 </p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border }}>
                 {[
-                  { step: '01', label: 'FETCH + PARSE', desc: 'Clone repo. Run tree-sitter AST. Extract every function, its type, params, and calls.' },
-                  { step: '02', label: 'CLASSIFY',      desc: 'Tag each function: route, handler, util, model, test, auth. Build fn_type_index.' },
-                  { step: '03', label: 'ANCHOR',        desc: 'Find all user-facing entry points. These become Intents — the root of each call tree.' },
-                  { step: '04', label: 'TRACE',         desc: 'Walk the call graph from an intent. Sim, live, or OTel. Animate the path.' },
+                  { step: '01', label: 'PARSE',    desc: 'Clone. Tree-sitter extracts every function — name, type, params, return type, calls.' },
+                  { step: '02', label: 'CLASSIFY', desc: 'Each function gets a role: route, handler, util, model, auth, test.' },
+                  { step: '03', label: 'ANCHOR',   desc: 'All entry points become Intents. These are the roots of the call trees.' },
+                  { step: '04', label: 'TRACE',    desc: 'Walk from any intent. Static, live attach, or OTel. Renders in the graph.' },
                 ].map(s => (
                   <div key={s.step} style={{
                     background: C.bg, padding: '18px 20px',
@@ -456,18 +455,17 @@ export default function LandingPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'start' }}>
               <div>
                 <h2 style={{ fontSize: 28, fontWeight: 300, color: C.text, marginBottom: 16, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                  One call. Full repo graph.
+                  One call. Everything your agent needs.
                 </h2>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 16 }}>
                   <code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>GET /intents?repo=owner/repo</code> returns
                   a{' '}<code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>ParsedRepo</code>{' '}
-                  with every function — typed params, return type, docstring, outbound calls.
+                  — every function with its name, type, file, line, return type, docstring, and which functions it calls.
                 </p>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 24 }}>
-                  Pre-built{' '}
                   <code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>fn_type_index</code> and{' '}
-                  <code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>file_index</code> give
-                  agents O(1) lookups without scanning the entire list.
+                  <code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>file_index</code> are
+                  pre-built so your agent doesn't have to scan the full list.
                 </p>
                 {/* mini stat row */}
                 <div style={{ display: 'flex', gap: 1, background: C.border }}>
@@ -494,12 +492,12 @@ export default function LandingPage() {
                   Measured. Not claimed.
                 </h2>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 16 }}>
-                  14 repos, 15k+ functions. Each repo parsed, serialized to ParsedRepo, and compared against
-                  raw source on token count, function recall, and semantic retention.
+                  14 repos, 15,000+ functions. Each repo parsed into ParsedRepo and compared to
+                  raw source on three axes: token count, function recall, semantic retention.
                 </p>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85 }}>
-                  Retention scored by Gemini 2.5 Flash — an independent model not involved in parsing —
-                  evaluating 5 sampled functions per repo across 3 dimensions: signature accuracy,
+                  Retention scored by Gemini 2.5 Flash — not Claude, not the model that built the
+                  parser. 5 functions sampled per repo, judged on signature accuracy,
                   docstring fidelity, and call-chain completeness.
                 </p>
               </div>
@@ -555,10 +553,10 @@ export default function LandingPage() {
           <section id="docs">
             <Label>DOCS</Label>
             <h2 style={{ fontSize: 28, fontWeight: 300, color: C.text, marginBottom: 12, letterSpacing: '-0.02em' }}>
-              Running in 60 seconds.
+              Up in 60 seconds.
             </h2>
             <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 32, maxWidth: 560 }}>
-              Python 3.11+ and Node 18+. No database, no cloud accounts, no config file needed for Sim mode.
+              Python 3.11+ and Node 18+. No database. No config file for sim mode.
             </p>
 
             {/* Tabs */}
@@ -619,15 +617,12 @@ export default function LandingPage() {
             display: 'flex', justifyContent: 'space-between',
             alignItems: 'center', flexWrap: 'wrap', gap: 8,
           }}>
-            <span style={{ ...mono, fontSize: 10, color: C.muted, fontWeight: 300, letterSpacing: '0.04em' }}>
-              made by foundarv enggers for internal usecase now for all —{' '}
-              <a href="https://foundarv.com" target="_blank" rel="noreferrer"
-                style={{ color: C.text, textDecoration: 'none' }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-              >foundarv.com</a>
-            </span>
             <span style={{ ...mono, fontSize: 10, color: C.dim, fontWeight: 300 }}>codeflow · mit license</span>
+            <a href="https://github.com/onedownz01/Thirdwheel-codeflow" target="_blank" rel="noreferrer"
+              style={{ ...mono, fontSize: 10, color: C.muted, textDecoration: 'none', fontWeight: 300, transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = C.text)}
+              onMouseLeave={e => (e.currentTarget.style.color = C.muted)}
+            >github →</a>
           </div>
 
         </div>{/* end content */}
