@@ -241,8 +241,8 @@ npm run dev`}</Code>
           {/* Schema */}
           <H2 id="schema">ParsedRepo schema</H2>
           <P>
-            <InlineCode>GET /intents?repo=owner/repo</InlineCode> returns an <InlineCode>ApiEnvelope</InlineCode> where{' '}
-            <InlineCode>data.parsed_repo</InlineCode> is a <InlineCode>ParsedRepo</InlineCode> object.
+            <InlineCode>POST /parse</InlineCode> returns an <InlineCode>ApiEnvelope</InlineCode> where{' '}
+            <InlineCode>data</InlineCode> is a <InlineCode>ParsedRepo</InlineCode> object.
           </P>
           <Code lang="typescript">{`interface Function {
   id:          string;      // "fn:a1b2c3"
@@ -309,9 +309,14 @@ interface ParsedRepo {
 
           {[
             {
+              method: 'POST', path: '/parse',
+              desc: 'Parse a repo and return the full ParsedRepo. Body: { repo: "owner/repo", token?: string, bust_cache?: boolean }. Results are cached.',
+              ret: 'ApiEnvelope<ParsedRepo>',
+            },
+            {
               method: 'GET', path: '/intents?repo={owner/repo}',
-              desc: 'Parse a repo and return the full ParsedRepo + intents. Results are cached — subsequent calls for the same repo are instant.',
-              ret: 'ApiEnvelope<{ parsed_repo: ParsedRepo, intents: Intent[] }>',
+              desc: 'Return intents list for an already-parsed repo.',
+              ret: 'ApiEnvelope<{ repo: string, branch: string, count: number, intents: Intent[] }>',
             },
             {
               method: 'GET', path: '/occurrences?intent_id={id}',
@@ -415,7 +420,7 @@ trace.set_tracer_provider(provider)`}</Code>
           {/* Agents */}
           <H2 id="agents">Using with agents</H2>
           <P>
-            The recommended pattern for LLM agents is to call <InlineCode>GET /intents</InlineCode> once
+            The recommended pattern for LLM agents is to call <InlineCode>POST /parse</InlineCode> once
             at the start of a session and pass the entire <InlineCode>ParsedRepo</InlineCode> as context.
             36% fewer tokens than raw source, 100% function recall.
           </P>
@@ -423,13 +428,11 @@ trace.set_tracer_provider(provider)`}</Code>
           <H3 id="agents-lookup">Efficient lookups</H3>
           <Code lang="python">{`import httpx, json
 
-repo = httpx.get("http://localhost:8001/intents?repo=tiangolo/fastapi").json()
-parsed = repo["data"]["parsed_repo"]
+resp = httpx.post("http://localhost:8001/parse", json={"repo": "tiangolo/fastapi"}).json()
+parsed = resp["data"]
 
 # All route functions — O(1)
-routes = [
-    parsed["fn_type_index"]["route"]  # list of fn ids
-]
+routes = parsed["fn_type_index"].get("route", [])  # list of fn ids
 
 # All functions in a specific file — O(1)
 main_fns = parsed["file_index"].get("app/main.py", [])
@@ -443,7 +446,7 @@ fn = fn_map["fn:a1b2c3"]`}</Code>
             Each <InlineCode>Intent</InlineCode> represents something a user can do. Pass the intent list
             to your agent so it can map user tasks to code paths without reading every file.
           </P>
-          <Code lang="python">{`intents = repo["data"]["intents"]
+          <Code lang="python">{`intents = parsed["intents"]
 # [{ "name": "POST /items", "fn_id": "fn:a1b2c3", "confidence": 0.94, ... }]
 
 # Give your agent a lookup: "what code handles POST /items?"

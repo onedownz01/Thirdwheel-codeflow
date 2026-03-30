@@ -195,7 +195,8 @@ class ParsedRepo(BaseModel):
 ## API Reference
 
 ```
-GET  /intents?repo={owner/repo}           ParsedRepo + all detected intents
+POST /parse                               Parse a repo → full ParsedRepo JSON
+GET  /intents?repo={owner/repo}           Intents list for an already-parsed repo
 GET  /occurrences?repo=...&intent_id=...  Call chain for one intent
 POST /trace/start                         Start a trace session
 POST /trace/ingest                        Ingest OTel spans

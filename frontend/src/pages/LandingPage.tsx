@@ -134,7 +134,8 @@ uvicorn backend.main:app --reload --port 8001
 cd frontend && npm install && npm run dev`;
 
 const API_ROUTES = [
-  { m: 'GET',  path: '/intents?repo={owner/repo}',  desc: 'Full ParsedRepo + all intents' },
+  { m: 'POST', path: '/parse',                       desc: 'Parse a repo → full ParsedRepo JSON' },
+  { m: 'GET',  path: '/intents?repo={owner/repo}',  desc: 'Intents list for an already-parsed repo' },
   { m: 'GET',  path: '/occurrences?intent_id=…',    desc: 'Call chain for one intent' },
   { m: 'POST', path: '/trace/start',                 desc: 'Start a trace session' },
   { m: 'POST', path: '/trace/ingest',                desc: 'Ingest OTel spans' },
@@ -458,7 +459,7 @@ export default function LandingPage() {
                   One call. Everything your agent needs.
                 </h2>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 16 }}>
-                  <code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>GET /intents?repo=owner/repo</code> returns
+                  <code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>POST /parse</code> returns
                   a{' '}<code style={{ ...mono, fontSize: 12, color: C.text, background: C.bg3, padding: '2px 6px', fontWeight: 300 }}>ParsedRepo</code>{' '}
                   — every function with its name, type, file, line, return type, docstring, and which functions it calls.
                 </p>
