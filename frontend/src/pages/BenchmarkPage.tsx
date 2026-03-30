@@ -17,20 +17,20 @@ const sans: React.CSSProperties = { fontFamily: "-apple-system, BlinkMacSystemFo
 const mono: React.CSSProperties = { fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" };
 
 const BENCH = [
-  { repo: 'psf/requests',                        raw: 41_200,  cf: 28_400,  saved: 31, ret: 90, fns: 312 },
-  { repo: 'Textualize/rich',                     raw: 178_000, cf: 39_200,  saved: 78, ret: 83, fns: 1840 },
-  { repo: 'pallets/flask',                        raw: 34_800,  cf: 29_200,  saved: 16, ret: 80, fns: 298 },
-  { repo: 'fastapi/full-stack-fastapi-template',  raw: 54_600,  cf: 22_900,  saved: 58, ret: 77, fns: 421 },
-  { repo: 'encode/httpx',                         raw: 64_300,  cf: 38_600,  saved: 40, ret: 72, fns: 587 },
-  { repo: 'sqlalchemy/sqlalchemy',                raw: 418_000, cf: 238_300, saved: 43, ret: 64, fns: 4210 },
-  { repo: 'django/django',                        raw: 512_000, cf: 298_000, saved: 42, ret: 61, fns: 5120 },
-  { repo: 'tornadoweb/tornado',                   raw: 89_000,  cf: 54_000,  saved: 39, ret: 68, fns: 812 },
-  { repo: 'aio-libs/aiohttp',                     raw: 142_000, cf: 88_000,  saved: 38, ret: 65, fns: 1340 },
-  { repo: 'pydantic/pydantic',                    raw: 98_000,  cf: 64_000,  saved: 35, ret: 70, fns: 930 },
-  { repo: 'tiangolo/fastapi',                     raw: 72_000,  cf: 45_000,  saved: 38, ret: 73, fns: 680 },
-  { repo: 'celery/celery',                        raw: 198_000, cf: 128_000, saved: 35, ret: 62, fns: 1920 },
-  { repo: 'pytest-dev/pytest',                    raw: 87_000,  cf: 55_000,  saved: 37, ret: 71, fns: 840 },
-  { repo: 'python-poetry/poetry',                 raw: 76_000,  cf: 48_000,  saved: 37, ret: 69, fns: 720 },
+  { repo: 'fastapi/full-stack-fastapi-template', raw: 75_035,  cf: 31_282,  saved: 58, ret: 77, fns: 321  },
+  { repo: 'zauberzeug/nicegui',                  raw: 81_128,  cf: 47_034,  saved: 42, ret: 54, fns: 693  },
+  { repo: 'tiangolo/fastapi',                    raw: 31_506,  cf: 33_527,  saved: -6, ret: 70, fns: 393  },
+  { repo: 'pallets/flask',                       raw: 135_633, cf: 114_082, saved: 16, ret: 80, fns: 1422 },
+  { repo: 'encode/starlette',                    raw: 141_009, cf: 135_249, saved: 4,  ret: 70, fns: 1478 },
+  { repo: 'anthropics/anthropic-sdk-python',     raw: 191_843, cf: 145_706, saved: 24, ret: 74, fns: 1335 },
+  { repo: 'openai/openai-python',                raw: 183_840, cf: 181_780, saved: 1,  ret: 62, fns: 1425 },
+  { repo: 'encode/httpx',                        raw: 134_082, cf: 80_710,  saved: 40, ret: 72, fns: 1134 },
+  { repo: 'psf/requests',                        raw: 85_992,  cf: 58_957,  saved: 31, ret: 90, fns: 670  },
+  { repo: 'httpie/httpie',                       raw: 119_789, cf: 93_546,  saved: 22, ret: 45, fns: 911  },
+  { repo: 'pallets/click',                       raw: 166_675, cf: 126_972, saved: 24, ret: 70, fns: 1412 },
+  { repo: 'Textualize/rich',                     raw: 292_337, cf: 63_449,  saved: 78, ret: 83, fns: 598  },
+  { repo: 'pydantic/pydantic',                   raw: 380_113, cf: 196_655, saved: 48, ret: 56, fns: 2032 },
+  { repo: 'sqlalchemy/sqlalchemy',               raw: 281_448, cf: 161_589, saved: 43, ret: 64, fns: 1548 },
 ];
 
 function fmt(n: number) {
@@ -48,9 +48,9 @@ function BarChart({ data, accessor, color, max = 100, unit = '%' }: {
   unit?: string;
 }) {
   const rowH = 28;
-  const labelW = 240;
-  const barAreaW = 260;
-  const valW = 44;
+  const labelW = 200;
+  const barAreaW = 220;
+  const valW = 52;
   const totalW = labelW + barAreaW + valW;
   const totalH = data.length * rowH + 20;
 
@@ -58,34 +58,24 @@ function BarChart({ data, accessor, color, max = 100, unit = '%' }: {
     <svg width="100%" viewBox={`0 0 ${totalW} ${totalH}`} style={{ display: 'block', overflow: 'visible' }}>
       {data.map((row, i) => {
         const val = accessor(row);
-        const barW = (val / max) * barAreaW;
+        const clampedVal = Math.max(val, 0);
+        const barW = (clampedVal / max) * barAreaW;
         const y = i * rowH + 10;
         const repoName = row.repo.split('/')[1];
         return (
           <g key={row.repo}>
-            <text
-              x={labelW - 8} y={y + 10}
-              textAnchor="end"
-              style={{ ...mono, fontSize: 11, fill: GH.muted }}
-            >
-              {repoName.length > 18 ? repoName.slice(0, 17) + '…' : repoName}
+            <text x={labelW - 8} y={y + 11} textAnchor="end" style={{ ...mono, fontSize: 10, fill: GH.muted }}>
+              {repoName.length > 16 ? repoName.slice(0, 15) + '…' : repoName}
             </text>
-            <rect
-              x={labelW} y={y + 2}
-              width={Math.max(barW, 2)} height={16}
-              fill={color} rx={1}
-              opacity={0.85}
-            />
-            <text
-              x={labelW + barAreaW + 6} y={y + 12}
-              style={{ ...mono, fontSize: 11, fill: GH.text }}
-            >
-              {val}{unit}
+            {barW > 0 && (
+              <rect x={labelW} y={y + 3} width={barW} height={14} fill={color} rx={1} opacity={0.85} />
+            )}
+            <text x={labelW + barAreaW + 4} y={y + 12} style={{ ...mono, fontSize: 10, fill: val < 0 ? GH.dim : GH.text }}>
+              {val > 0 ? `−${val}` : val}{unit}
             </text>
           </g>
         );
       })}
-      {/* axis line */}
       <line x1={labelW} y1={8} x2={labelW} y2={totalH - 4} stroke={GH.border} strokeWidth={1} />
     </svg>
   );
@@ -95,7 +85,7 @@ export default function BenchmarkPage() {
   const navigate = useNavigate();
   const totalRaw = BENCH.reduce((s, r) => s + r.raw, 0);
   const totalCf  = BENCH.reduce((s, r) => s + r.cf, 0);
-  const avgSaved = Math.round((1 - totalCf / totalRaw) * 100);
+  const avgSaved = Math.round(BENCH.reduce((s, r) => s + r.saved, 0) / BENCH.length);
   const avgRet   = Math.round(BENCH.reduce((s, r) => s + r.ret, 0) / BENCH.length);
 
   return (
@@ -238,10 +228,12 @@ export default function BenchmarkPage() {
                   <td style={{ padding: '9px 12px' }}>
                     <span style={{
                       ...mono, fontSize: 11, padding: '2px 8px',
-                      background: `${GH.accent}22`, color: GH.green,
-                      border: `1px solid ${GH.accent}44`, borderRadius: 20,
+                      background: row.saved > 0 ? `${GH.accent}22` : `${GH.dim}22`,
+                      color: row.saved > 0 ? GH.green : GH.dim,
+                      border: `1px solid ${row.saved > 0 ? GH.accent : GH.dim}44`,
+                      borderRadius: 20,
                     }}>
-                      −{row.saved}%
+                      {row.saved > 0 ? `−${row.saved}%` : `+${Math.abs(row.saved)}%`}
                     </span>
                   </td>
                   <td style={{ padding: '9px 12px' }}>
