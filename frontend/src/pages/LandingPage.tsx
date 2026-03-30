@@ -1,604 +1,689 @@
 import { useNavigate } from 'react-router-dom';
 
-const S = {
-  page: {
-    background: '#0a0f1a',
-    color: '#e2e8f0',
-    fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-    minHeight: '100vh',
-    lineHeight: 1.6,
-  } as React.CSSProperties,
+/* ─────────────────────────────────────────────
+   Codeflow landing — inspired by betterauth.com
+   Dark-first, clean grid, numbered features,
+   real code front-and-centre.
+───────────────────────────────────────────── */
 
-  nav: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 48px',
-    height: 52,
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    position: 'sticky' as const,
-    top: 0,
-    background: 'rgba(10,15,26,0.92)',
-    backdropFilter: 'blur(12px)',
-    zIndex: 100,
-  },
+const MINT = '#4ade80';
+const BG = '#09090b';
+const BG2 = '#0f0f12';
+const BORDER = 'rgba(255,255,255,0.07)';
+const TEXT = '#f4f4f5';
+const MUTED = '#71717a';
+const DIM = '#3f3f46';
 
-  navLogo: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#4ade80',
-    letterSpacing: '0.12em',
-  },
-
-  navLinks: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 32,
-  },
-
-  navLink: {
-    fontSize: 12,
-    color: '#94a3b8',
-    textDecoration: 'none',
-    letterSpacing: '0.06em',
-    cursor: 'pointer',
-    transition: 'color 0.15s',
-  },
-
-  launchBtn: {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.1em',
-    color: '#0a0f1a',
-    background: '#4ade80',
-    border: 'none',
-    padding: '7px 18px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-
-  hero: {
-    maxWidth: 860,
-    margin: '0 auto',
-    padding: '100px 48px 80px',
-    textAlign: 'center' as const,
-  },
-
-  heroEyebrow: {
-    fontSize: 11,
-    letterSpacing: '0.18em',
-    color: '#4ade80',
-    marginBottom: 24,
-    textTransform: 'uppercase' as const,
-  },
-
-  heroTitle: {
-    fontSize: 52,
-    fontWeight: 800,
-    lineHeight: 1.1,
-    marginBottom: 24,
-    letterSpacing: '-0.02em',
-    color: '#f1f5f9',
-  },
-
-  heroSub: {
-    fontSize: 16,
-    color: '#94a3b8',
-    maxWidth: 560,
-    margin: '0 auto 48px',
-    lineHeight: 1.7,
-  },
-
-  heroCtas: {
-    display: 'flex',
-    gap: 16,
-    justifyContent: 'center',
-    flexWrap: 'wrap' as const,
-  },
-
-  ctaPrimary: {
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: '0.1em',
-    color: '#0a0f1a',
-    background: '#4ade80',
-    border: 'none',
-    padding: '12px 28px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    textDecoration: 'none',
-  },
-
-  ctaSecondary: {
-    fontSize: 12,
-    fontWeight: 600,
-    letterSpacing: '0.08em',
-    color: '#94a3b8',
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.12)',
-    padding: '12px 28px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    textDecoration: 'none',
-  },
-
-  section: {
-    maxWidth: 1000,
-    margin: '0 auto',
-    padding: '80px 48px',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
-  },
-
-  sectionLabel: {
-    fontSize: 10,
-    letterSpacing: '0.2em',
-    color: '#4ade80',
-    textTransform: 'uppercase' as const,
-    marginBottom: 12,
-  },
-
-  sectionTitle: {
-    fontSize: 28,
-    fontWeight: 700,
-    color: '#f1f5f9',
-    marginBottom: 12,
-    letterSpacing: '-0.01em',
-  },
-
-  sectionSub: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginBottom: 48,
-    maxWidth: 560,
-  },
-
-  twoCol: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 24,
-  },
-
-  card: {
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.07)',
-    padding: 32,
-  },
-
-  cardTag: {
-    fontSize: 10,
-    letterSpacing: '0.15em',
-    color: '#4ade80',
-    textTransform: 'uppercase' as const,
-    marginBottom: 12,
-  },
-
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: 700,
-    color: '#f1f5f9',
-    marginBottom: 10,
-  },
-
-  cardBody: {
-    fontSize: 13,
-    color: '#94a3b8',
-    lineHeight: 1.7,
-  },
-
-  threeCol: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
-    gap: 20,
-  },
-
-  modeCard: {
-    background: 'rgba(255,255,255,0.025)',
-    border: '1px solid rgba(255,255,255,0.07)',
-    padding: '28px 24px',
-  },
-
-  modeName: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: '#4ade80',
-    letterSpacing: '0.1em',
-    marginBottom: 8,
-  },
-
-  modeTitle: {
-    fontSize: 15,
-    fontWeight: 600,
-    color: '#e2e8f0',
-    marginBottom: 10,
-  },
-
-  modeBody: {
-    fontSize: 12,
-    color: '#94a3b8',
-    lineHeight: 1.7,
-    marginBottom: 16,
-  },
-
-  modeReq: {
-    fontSize: 11,
-    color: '#475569',
-    borderTop: '1px solid rgba(255,255,255,0.05)',
-    paddingTop: 12,
-    marginTop: 8,
-  },
-
-  statGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: 1,
-    background: 'rgba(255,255,255,0.06)',
-    marginBottom: 40,
-  },
-
-  statCell: {
-    background: '#0a0f1a',
-    padding: '28px 24px',
-    textAlign: 'center' as const,
-  },
-
-  statNum: {
-    fontSize: 36,
-    fontWeight: 800,
-    color: '#4ade80',
-    letterSpacing: '-0.02em',
-  },
-
-  statLabel: {
-    fontSize: 11,
-    color: '#475569',
-    letterSpacing: '0.08em',
-    marginTop: 4,
-  },
-
-  benchRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    padding: '10px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.04)',
-  },
-
-  benchRepo: {
-    fontSize: 12,
-    color: '#94a3b8',
-    width: 240,
-    flexShrink: 0,
-  },
-
-  benchBar: {
-    flex: 1,
-    height: 6,
-    background: 'rgba(255,255,255,0.05)',
-    position: 'relative' as const,
-  },
-
-  benchVal: {
-    fontSize: 11,
-    color: '#4ade80',
-    fontWeight: 700,
-    width: 50,
-    textAlign: 'right' as const,
-    flexShrink: 0,
-  },
-
-  codeBlock: {
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.07)',
-    padding: '20px 24px',
-    fontSize: 12,
-    color: '#94a3b8',
-    lineHeight: 1.8,
-    overflowX: 'auto' as const,
-  },
-
-  codeComment: {
-    color: '#475569',
-  },
-
-  codeGreen: {
-    color: '#4ade80',
-  },
-
-  schemaField: {
-    display: 'grid',
-    gridTemplateColumns: '180px 1fr',
-    gap: 12,
-    padding: '8px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.04)',
-    fontSize: 12,
-  },
-
-  fieldName: {
-    color: '#4ade80',
-    fontFamily: 'inherit',
-  },
-
-  fieldDesc: {
-    color: '#94a3b8',
-  },
-
-  footer: {
-    borderTop: '1px solid rgba(255,255,255,0.06)',
-    padding: '32px 48px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    fontSize: 11,
-    color: '#334155',
-  },
+const base: React.CSSProperties = {
+  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+  background: BG,
+  color: TEXT,
+  minHeight: '100vh',
 };
 
-const BENCH_DATA = [
-  { repo: 'Textualize/rich',                       saved: 78.3, retention: 83 },
-  { repo: 'fastapi/full-stack-fastapi-template',   saved: 58.3, retention: 77 },
-  { repo: 'pydantic/pydantic',                     saved: 48.3, retention: 56 },
-  { repo: 'sqlalchemy/sqlalchemy',                 saved: 42.6, retention: 64 },
-  { repo: 'encode/httpx',                          saved: 39.8, retention: 72 },
-  { repo: 'psf/requests',                          saved: 31.4, retention: 90 },
-  { repo: 'anthropics/anthropic-sdk-python',       saved: 24.0, retention: 74 },
-  { repo: 'pallets/flask',                         saved: 15.9, retention: 80 },
+const mono: React.CSSProperties = {
+  fontFamily: "'SF Mono', 'Fira Code', monospace",
+};
+
+const FEATURES = [
+  {
+    n: '01',
+    title: 'Parse any GitHub repo',
+    body: 'Paste a URL. Codeflow fetches, parses with Tree-sitter, and returns a structured graph in seconds. Python and TypeScript/React supported out of the box.',
+  },
+  {
+    n: '02',
+    title: 'Intent extraction',
+    body: 'Every user-facing action — API routes, form handlers, CLI commands, class entry points — is surfaced as a named Intent with a confidence score.',
+  },
+  {
+    n: '03',
+    title: 'Animated call-chain tracer',
+    body: 'Click an intent and watch the full execution path animate across the canvas. File, line number, and I/O on every block.',
+  },
+  {
+    n: '04',
+    title: 'Three trace modes',
+    body: 'Sim walks the static call graph. OTel ingests real spans from your running service. Live attaches sys.settrace to a local process — zero code changes.',
+  },
+  {
+    n: '05',
+    title: 'Structured context for agents',
+    body: 'ParsedRepo JSON gives LLM agents 36% fewer tokens on average, 100% function recall, and pre-built fn_type_index / file_index for O(1) lookups.',
+  },
+  {
+    n: '06',
+    title: 'Benchmarked, not claimed',
+    body: '14 repos, 15k+ functions. Gemini 2.5 Flash judges semantic retention: 69% avg vs raw source. psf/requests hits 90%. Full report in the repo.',
+  },
 ];
 
-const SCHEMA_FIELDS = [
-  { name: 'functions[]',     desc: 'All functions — name, type, file, params, return_type, docstring, calls' },
-  { name: 'intents[]',       desc: 'User-facing actions — routes, handlers, CLI commands, form events' },
-  { name: 'edges[]',         desc: 'Call graph edges — source → target function IDs' },
-  { name: 'fn_type_index',   desc: 'O(1) lookup: { "route": [...ids], "handler": [...ids], ... }' },
-  { name: 'file_index',      desc: 'O(1) lookup: { "path/to/file.py": [...ids], ... }' },
+const STATS = [
+  { n: '36%',    label: 'avg token savings' },
+  { n: '100%',   label: 'function recall' },
+  { n: '69%',    label: 'semantic retention' },
+  { n: '14',     label: 'repos benchmarked' },
 ];
+
+const CODE_SNIPPET = `# One endpoint — full repo graph
+GET /intents?repo=tiangolo/fastapi
+
+# Returns ParsedRepo JSON:
+{
+  "functions": [           # every fn with type, params,
+    {                      # return_type, docstring, calls
+      "id": "fn:abc123",
+      "name": "create_item",
+      "type": "route",
+      "file": "app/main.py",
+      "line": 42,
+      "return_type": "Item",
+      "docstring": "Create a new item.",
+      "calls": ["fn:def456", "fn:ghi789"]
+    }
+    ...
+  ],
+  "intents": [...],        # user-facing actions
+  "fn_type_index": {       # O(1) by type
+    "route":   ["fn:abc123", ...],
+    "handler": [...],
+    "auth":    [...]
+  },
+  "file_index": {          # O(1) by file
+    "app/main.py": ["fn:abc123", ...]
+  }
+}`;
 
 export default function LandingPage() {
   const navigate = useNavigate();
 
-  const scrollTo = (id: string) => {
+  const scrollTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   return (
-    <div style={S.page}>
+    <div style={base}>
+
       {/* ── Nav ── */}
-      <nav style={S.nav}>
-        <span style={S.navLogo}>CODEFLOW</span>
-        <div style={S.navLinks}>
-          <span style={S.navLink} onClick={() => scrollTo('for-agents')}>For Agents</span>
-          <span style={S.navLink} onClick={() => scrollTo('benchmark')}>Benchmark</span>
-          <span style={S.navLink} onClick={() => scrollTo('docs')}>Docs</span>
-          <button style={S.launchBtn} onClick={() => navigate('/app')}>LAUNCH APP →</button>
+      <header style={{
+        borderBottom: `1px solid ${BORDER}`,
+        position: 'sticky',
+        top: 0,
+        background: 'rgba(9,9,11,0.85)',
+        backdropFilter: 'blur(16px)',
+        zIndex: 50,
+      }}>
+        <div style={{
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: '0 32px',
+          height: 56,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 24,
+        }}>
+          <span style={{ ...mono, fontSize: 14, fontWeight: 700, color: MINT, letterSpacing: '0.1em' }}>
+            CODEFLOW
+          </span>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+            {['Features', 'Benchmark', 'Docs'].map(label => (
+              <button
+                key={label}
+                onClick={() => scrollTo(label.toLowerCase())}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 13, color: MUTED, padding: 0,
+                  fontFamily: 'inherit',
+                  transition: 'color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = TEXT)}
+                onMouseLeave={e => (e.currentTarget.style.color = MUTED)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <button
+            onClick={() => navigate('/app')}
+            style={{
+              background: MINT, color: BG,
+              border: 'none', cursor: 'pointer',
+              padding: '8px 20px',
+              fontSize: 13, fontWeight: 700,
+              fontFamily: 'inherit',
+              letterSpacing: '0.04em',
+              borderRadius: 6,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >
+            Launch App →
+          </button>
         </div>
-      </nav>
+      </header>
 
       {/* ── Hero ── */}
-      <div style={S.hero}>
-        <div style={S.heroEyebrow}>Intent-anchored execution tracer</div>
-        <h1 style={S.heroTitle}>
-          See what your code does.<br />
-          <span style={{ color: '#4ade80' }}>Not just what it says.</span>
+      <section style={{
+        maxWidth: 1100,
+        margin: '0 auto',
+        padding: '96px 32px 80px',
+        textAlign: 'center',
+      }}>
+        <div style={{
+          display: 'inline-block',
+          ...mono,
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: MINT,
+          background: 'rgba(74,222,128,0.08)',
+          border: `1px solid rgba(74,222,128,0.2)`,
+          padding: '4px 14px',
+          borderRadius: 99,
+          marginBottom: 32,
+        }}>
+          intent-anchored execution tracer
+        </div>
+
+        <h1 style={{
+          fontSize: 'clamp(36px, 6vw, 68px)',
+          fontWeight: 800,
+          lineHeight: 1.08,
+          letterSpacing: '-0.03em',
+          marginBottom: 24,
+          color: TEXT,
+        }}>
+          The most comprehensive<br />
+          <span style={{ color: MINT }}>code understanding tool</span><br />
+          for humans and agents.
         </h1>
-        <p style={S.heroSub}>
-          Paste any GitHub URL. Codeflow maps every user-facing action to its full call chain — for
-          interactive tracing, for LLM agents, for anyone who needs to understand a codebase fast.
+
+        <p style={{
+          fontSize: 17,
+          color: MUTED,
+          maxWidth: 540,
+          margin: '0 auto 48px',
+          lineHeight: 1.7,
+        }}>
+          Paste any GitHub URL. Get every user-facing action, a full call-chain
+          tracer, and a structured JSON graph your LLM agents can actually use.
         </p>
-        <div style={S.heroCtas}>
-          <button style={S.ctaPrimary} onClick={() => navigate('/app')}>LAUNCH APP →</button>
-          <button style={S.ctaSecondary} onClick={() => scrollTo('benchmark')}>VIEW BENCHMARK</button>
+
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate('/app')}
+            style={{
+              background: MINT, color: BG,
+              border: 'none', cursor: 'pointer',
+              padding: '12px 28px',
+              fontSize: 14, fontWeight: 700,
+              fontFamily: 'inherit',
+              borderRadius: 8,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >
+            Launch the tracer
+          </button>
+          <button
+            onClick={() => scrollTo('benchmark')}
+            style={{
+              background: 'transparent', color: TEXT,
+              border: `1px solid ${BORDER}`, cursor: 'pointer',
+              padding: '12px 28px',
+              fontSize: 14, fontWeight: 500,
+              fontFamily: 'inherit',
+              borderRadius: 8,
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = DIM)}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
+          >
+            View benchmark
+          </button>
+        </div>
+      </section>
+
+      {/* ── Stats bar ── */}
+      <div style={{
+        borderTop: `1px solid ${BORDER}`,
+        borderBottom: `1px solid ${BORDER}`,
+        background: BG2,
+      }}>
+        <div style={{
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: '0 32px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+        }}>
+          {STATS.map((s, i) => (
+            <div
+              key={s.n}
+              style={{
+                padding: '32px 24px',
+                textAlign: 'center',
+                borderRight: i < STATS.length - 1 ? `1px solid ${BORDER}` : 'none',
+              }}
+            >
+              <div style={{ ...mono, fontSize: 36, fontWeight: 800, color: MINT, letterSpacing: '-0.02em' }}>
+                {s.n}
+              </div>
+              <div style={{ fontSize: 12, color: MUTED, marginTop: 4, letterSpacing: '0.04em' }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── For Humans & For Agents ── */}
-      <div style={S.section}>
-        <div style={S.sectionLabel}>What is it</div>
-        <h2 style={S.sectionTitle}>Built for two audiences.</h2>
-        <p style={S.sectionSub}>
-          Most tools pick one. Codeflow serves both — an interactive canvas for engineers,
-          and a structured JSON format for agents.
-        </p>
-        <div style={S.twoCol}>
-          <div style={S.card}>
-            <div style={S.cardTag}>For Humans</div>
-            <div style={S.cardTitle}>Interactive execution tracer</div>
-            <div style={S.cardBody}>
-              Paste a GitHub repo URL. Every user-facing action surfaces as an intent — buttons,
-              routes, CLI commands, form handlers. Click one and watch the call chain animate
-              in real time. Every function block shows file path, line number, and I/O at each step.<br /><br />
-              Three trace modes: simulate from the static call graph, receive real OpenTelemetry
-              spans from a running service, or attach directly to a local process.
-            </div>
-          </div>
-          <div id="for-agents" style={S.card}>
-            <div style={S.cardTag}>For Agents</div>
-            <div style={S.cardTitle}>ParsedRepo — structured context for LLMs</div>
-            <div style={S.cardBody}>
-              Every repository becomes a single <code style={{ color: '#4ade80' }}>ParsedRepo</code> JSON object.
-              Functions with typed signatures, docstrings, call edges, and pre-built indexes — everything an
-              agent needs to navigate a codebase without reading raw files.<br /><br />
-              Benchmarked across 14 repos: <strong style={{ color: '#f1f5f9' }}>36% average token savings</strong>,{' '}
-              <strong style={{ color: '#f1f5f9' }}>100% function recall</strong>,{' '}
-              <strong style={{ color: '#f1f5f9' }}>69% semantic retention</strong> vs raw source (Gemini 2.5 Flash judge).
-            </div>
-          </div>
+      {/* ── Features ── */}
+      <section id="features" style={{
+        maxWidth: 1100,
+        margin: '0 auto',
+        padding: '96px 32px',
+      }}>
+        <div style={{ marginBottom: 56, textAlign: 'center' }}>
+          <p style={{ ...mono, fontSize: 11, letterSpacing: '0.16em', color: MINT, marginBottom: 12 }}>
+            WHAT IT DOES
+          </p>
+          <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            Everything you need to understand a codebase.
+          </h2>
         </div>
-      </div>
 
-      {/* ── Modes ── */}
-      <div style={S.section}>
-        <div style={S.sectionLabel}>Trace Modes</div>
-        <h2 style={S.sectionTitle}>Three ways to trace.</h2>
-        <p style={S.sectionSub}>Start with Sim — no setup needed. Upgrade to OTel or Live when you need real data.</p>
-        <div style={S.threeCol}>
-          <div style={S.modeCard}>
-            <div style={S.modeName}>SIM</div>
-            <div style={S.modeTitle}>Static call graph simulation</div>
-            <div style={S.modeBody}>
-              Walks the parsed call graph and generates a synthetic execution trace with
-              realistic I/O values. No running service required — works on any public repo instantly.
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 1,
+          background: BORDER,
+          border: `1px solid ${BORDER}`,
+          borderRadius: 12,
+          overflow: 'hidden',
+        }}>
+          {FEATURES.map((f) => (
+            <div
+              key={f.n}
+              style={{
+                background: BG,
+                padding: '32px 28px',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = BG2)}
+              onMouseLeave={e => (e.currentTarget.style.background = BG)}
+            >
+              <div style={{ ...mono, fontSize: 11, color: DIM, marginBottom: 16, letterSpacing: '0.1em' }}>
+                {f.n}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: TEXT, marginBottom: 10 }}>
+                {f.title}
+              </div>
+              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.7 }}>
+                {f.body}
+              </div>
             </div>
-            <div style={S.modeReq}>Requires: any public GitHub URL</div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── For Agents — code block ── */}
+      <section id="for-agents" style={{
+        borderTop: `1px solid ${BORDER}`,
+        background: BG2,
+      }}>
+        <div style={{
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: '96px 32px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 64,
+          alignItems: 'center',
+        }}>
+          <div>
+            <p style={{ ...mono, fontSize: 11, letterSpacing: '0.16em', color: MINT, marginBottom: 12 }}>
+              FOR AGENTS
+            </p>
+            <h2 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 16, lineHeight: 1.2 }}>
+              One API call.<br />Full repo graph.
+            </h2>
+            <p style={{ fontSize: 14, color: MUTED, lineHeight: 1.8, marginBottom: 32 }}>
+              Every function with type classification, typed params, return type,
+              docstring, and outbound calls. Pre-built indexes so agents skip
+              the full function scan — <code style={{ ...mono, color: MINT, fontSize: 13 }}>fn_type_index</code> and{' '}
+              <code style={{ ...mono, color: MINT, fontSize: 13 }}>file_index</code> give O(1) access.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                '100% function recall across 14 repos',
+                '36% avg token savings vs raw source',
+                '69% semantic retention (Gemini 2.5 Flash judge)',
+              ].map(item => (
+                <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: MUTED }}>
+                  <span style={{ color: MINT, marginTop: 1, flexShrink: 0 }}>✓</span>
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
-          <div style={S.modeCard}>
-            <div style={S.modeName}>OTEL</div>
-            <div style={S.modeTitle}>Real OpenTelemetry spans</div>
-            <div style={S.modeBody}>
-              Receives live spans from your running service via the OTel SDK. Point your
-              collector at Codeflow's ingest endpoint — real timing, real values, real errors.
+
+          <div style={{
+            background: BG,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 10,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '10px 16px',
+              borderBottom: `1px solid ${BORDER}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}>
+              {['#ef4444','#f59e0b','#22c55e'].map(c => (
+                <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
+              ))}
+              <span style={{ ...mono, fontSize: 11, color: DIM, marginLeft: 8 }}>parsed_repo.json</span>
             </div>
-            <div style={S.modeReq}>Requires: OTel SDK pointed at Codeflow</div>
-          </div>
-          <div style={S.modeCard}>
-            <div style={S.modeName}>LIVE</div>
-            <div style={S.modeTitle}>sys.settrace instrumentation</div>
-            <div style={S.modeBody}>
-              Attaches Python's <code style={{ color: '#4ade80' }}>sys.settrace</code> directly to a local
-              process. Captures every function call, argument, and return value with zero
-              code changes.
-            </div>
-            <div style={S.modeReq}>Requires: local repo + run command</div>
+            <pre style={{
+              ...mono,
+              fontSize: 12,
+              lineHeight: 1.7,
+              padding: '20px 20px',
+              margin: 0,
+              color: '#a1a1aa',
+              overflowX: 'auto',
+              whiteSpace: 'pre',
+            }}>
+              {CODE_SNIPPET.split('\n').map((line, i) => {
+                const isComment = line.trimStart().startsWith('#');
+                const isKey = /^\s+"[a-z_]+":\s/.test(line);
+                const isMint = /GET|"type"|"route"|"handler"|"auth"/.test(line);
+                return (
+                  <span key={i} style={{
+                    color: isComment ? '#3f3f46' : isMint ? MINT : isKey ? '#e4e4e7' : '#71717a',
+                    display: 'block',
+                  }}>
+                    {line}
+                  </span>
+                );
+              })}
+            </pre>
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* ── Trace Modes ── */}
+      <section style={{
+        maxWidth: 1100,
+        margin: '0 auto',
+        padding: '96px 32px',
+      }}>
+        <div style={{ marginBottom: 56, textAlign: 'center' }}>
+          <p style={{ ...mono, fontSize: 11, letterSpacing: '0.16em', color: MINT, marginBottom: 12 }}>
+            TRACE MODES
+          </p>
+          <h2 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            Three ways to trace. Start in 30 seconds.
+          </h2>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          {[
+            {
+              mode: 'Sim',
+              tagline: 'No setup needed',
+              desc: 'Walks the static call graph and generates a synthetic execution trace. Works on any public repo instantly — no running service required.',
+              req: 'Any public GitHub URL',
+              highlight: true,
+            },
+            {
+              mode: 'OTel',
+              tagline: 'Real spans',
+              desc: 'Receives live OpenTelemetry spans from your running service. Real timing, real values, real errors. Point your collector at the ingest endpoint.',
+              req: 'OTel SDK + running service',
+              highlight: false,
+            },
+            {
+              mode: 'Live',
+              tagline: 'Zero instrumentation',
+              desc: "Attaches Python's sys.settrace directly to a local process. Captures every call, argument, and return value without touching a single line of your code.",
+              req: 'Local repo + run command',
+              highlight: false,
+            },
+          ].map(m => (
+            <div
+              key={m.mode}
+              style={{
+                background: m.highlight ? 'rgba(74,222,128,0.05)' : BG2,
+                border: `1px solid ${m.highlight ? 'rgba(74,222,128,0.2)' : BORDER}`,
+                borderRadius: 10,
+                padding: '28px 24px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: m.highlight ? MINT : TEXT }}>
+                  {m.mode}
+                </span>
+                <span style={{
+                  ...mono,
+                  fontSize: 10,
+                  letterSpacing: '0.1em',
+                  color: m.highlight ? MINT : MUTED,
+                  background: m.highlight ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)',
+                  padding: '2px 8px',
+                  borderRadius: 99,
+                }}>
+                  {m.tagline}
+                </span>
+              </div>
+              <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.7, marginBottom: 20 }}>
+                {m.desc}
+              </p>
+              <div style={{
+                ...mono,
+                fontSize: 11,
+                color: DIM,
+                borderTop: `1px solid ${BORDER}`,
+                paddingTop: 14,
+              }}>
+                Requires: {m.req}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Benchmark ── */}
-      <div id="benchmark" style={S.section}>
-        <div style={S.sectionLabel}>Benchmark</div>
-        <h2 style={S.sectionTitle}>Measured. Not claimed.</h2>
-        <p style={S.sectionSub}>
-          14 repos, 15,000+ functions, 70 functions judged by Gemini 2.5 Flash.
-          Three independent passes: token efficiency, ground-truth recall, semantic retention.
-        </p>
+      <section id="benchmark" style={{
+        borderTop: `1px solid ${BORDER}`,
+        background: BG2,
+      }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '96px 32px' }}>
+          <div style={{ marginBottom: 48 }}>
+            <p style={{ ...mono, fontSize: 11, letterSpacing: '0.16em', color: MINT, marginBottom: 12 }}>
+              BENCHMARK — 2026-03-30
+            </p>
+            <h2 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 12 }}>
+              Measured. Not claimed.
+            </h2>
+            <p style={{ fontSize: 14, color: MUTED, maxWidth: 520 }}>
+              14 repos, 15,000+ functions, 70 functions judged by Gemini 2.5 Flash (independent judge — not Claude).
+              Three passes: token efficiency, ground-truth recall, semantic retention.
+            </p>
+          </div>
 
-        <div style={S.statGrid}>
-          <div style={S.statCell}>
-            <div style={S.statNum}>36%</div>
-            <div style={S.statLabel}>avg token savings</div>
-          </div>
-          <div style={S.statCell}>
-            <div style={S.statNum}>100%</div>
-            <div style={S.statLabel}>function recall</div>
-          </div>
-          <div style={S.statCell}>
-            <div style={S.statNum}>69%</div>
-            <div style={S.statLabel}>semantic retention</div>
-          </div>
-          <div style={S.statCell}>
-            <div style={S.statNum}>4.6×</div>
-            <div style={S.statLabel}>best compression (rich)</div>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 12, fontSize: 11, color: '#475569', letterSpacing: '0.1em' }}>
-          TOKEN SAVINGS PER REPO
-        </div>
-        {BENCH_DATA.map((row) => (
-          <div key={row.repo} style={S.benchRow}>
-            <div style={S.benchRepo}>{row.repo}</div>
-            <div style={S.benchBar}>
-              <div style={{
-                position: 'absolute',
-                left: 0, top: 0, bottom: 0,
-                width: `${Math.max(0, row.saved)}%`,
-                background: row.saved >= 50 ? '#22c55e' : '#4ade80',
-                opacity: 0.8,
-              }} />
+          <div style={{
+            border: `1px solid ${BORDER}`,
+            borderRadius: 10,
+            overflow: 'hidden',
+          }}>
+            {/* header */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 100px 100px 100px',
+              padding: '10px 20px',
+              background: 'rgba(255,255,255,0.02)',
+              borderBottom: `1px solid ${BORDER}`,
+              ...mono,
+              fontSize: 10,
+              letterSpacing: '0.1em',
+              color: DIM,
+            }}>
+              <span>REPO</span><span style={{textAlign:'right'}}>SAVED</span>
+              <span style={{textAlign:'right'}}>RETENTION</span>
+              <span style={{textAlign:'right'}}>GRADE</span>
             </div>
-            <div style={S.benchVal}>{row.saved.toFixed(1)}%</div>
+
+            {[
+              { repo: 'psf/requests',                         saved: '31.4%', ret: '90%', grade: 'A' },
+              { repo: 'Textualize/rich',                      saved: '78.3%', ret: '83%', grade: 'A' },
+              { repo: 'pallets/flask',                        saved: '15.9%', ret: '80%', grade: 'A' },
+              { repo: 'fastapi/full-stack-fastapi-template',  saved: '58.3%', ret: '77%', grade: 'B+' },
+              { repo: 'anthropics/anthropic-sdk-python',      saved: '24.0%', ret: '74%', grade: 'B+' },
+              { repo: 'encode/httpx',                         saved: '39.8%', ret: '72%', grade: 'B+' },
+              { repo: 'sqlalchemy/sqlalchemy',                saved: '42.6%', ret: '64%', grade: 'B' },
+              { repo: 'openai/openai-python',                 saved:  '1.1%', ret: '62%', grade: 'B' },
+            ].map((row, i) => (
+              <div
+                key={row.repo}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 100px 100px 100px',
+                  padding: '14px 20px',
+                  borderBottom: i < 7 ? `1px solid ${BORDER}` : 'none',
+                  alignItems: 'center',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span style={{ ...mono, fontSize: 13, color: TEXT }}>{row.repo}</span>
+                <span style={{ ...mono, fontSize: 13, color: MINT, textAlign: 'right' }}>{row.saved}</span>
+                <span style={{ ...mono, fontSize: 13, color: MUTED, textAlign: 'right' }}>{row.ret}</span>
+                <span style={{
+                  ...mono, fontSize: 11, fontWeight: 700, textAlign: 'right',
+                  color: row.grade === 'A' ? MINT : row.grade.startsWith('B+') ? '#a3e635' : MUTED,
+                }}>{row.grade}</span>
+              </div>
+            ))}
+
+            <div style={{
+              padding: '14px 20px',
+              borderTop: `1px solid ${BORDER}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 12, color: MUTED }}>14 repos total · full report in repo</span>
+              <a
+                href="https://github.com/onedownz01/Thirdwheel-codeflow/blob/main/benchmark/FINAL_BENCHMARK_REPORT.md"
+                target="_blank"
+                rel="noreferrer"
+                style={{ ...mono, fontSize: 11, color: MINT, textDecoration: 'none' }}
+              >
+                View full report →
+              </a>
+            </div>
           </div>
-        ))}
-
-        <div style={{ marginTop: 32, textAlign: 'center' }}>
-          <a
-            href="https://github.com/onedownz01/Thirdwheel-codeflow/blob/main/benchmark/FINAL_BENCHMARK_REPORT.md"
-            target="_blank"
-            rel="noreferrer"
-            style={{ ...S.ctaSecondary, display: 'inline-block' }}
-          >
-            VIEW FULL REPORT →
-          </a>
         </div>
-      </div>
+      </section>
 
-      {/* ── ParsedRepo Schema ── */}
-      <div style={S.section}>
-        <div style={S.sectionLabel}>For Agents — Schema</div>
-        <h2 style={S.sectionTitle}>What an agent receives.</h2>
-        <p style={S.sectionSub}>
-          One API call to <code style={{ color: '#4ade80' }}>GET /intents?repo=owner/repo</code> returns
-          a fully structured ParsedRepo. No prompt engineering needed.
-        </p>
-        <div style={{ ...S.codeBlock, marginBottom: 24 }}>
-          <span style={S.codeComment}># Agent usage</span><br />
-          <span style={S.codeGreen}>GET</span> /intents?repo=<span style={S.codeGreen}>tiangolo/fastapi</span><br />
-          <br />
-          <span style={S.codeComment}># Returns ParsedRepo JSON with:</span>
+      {/* ── Docs / Quick start ── */}
+      <section id="docs" style={{ maxWidth: 1100, margin: '0 auto', padding: '96px 32px' }}>
+        <div style={{ marginBottom: 48 }}>
+          <p style={{ ...mono, fontSize: 11, letterSpacing: '0.16em', color: MINT, marginBottom: 12 }}>
+            QUICK START
+          </p>
+          <h2 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            Running in 60 seconds.
+          </h2>
         </div>
-        <div style={{ ...S.card, padding: '8px 24px' }}>
-          {SCHEMA_FIELDS.map((f) => (
-            <div key={f.name} style={S.schemaField}>
-              <span style={S.fieldName}>{f.name}</span>
-              <span style={S.fieldDesc}>{f.desc}</span>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {/* setup */}
+          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${BORDER}`, background: BG2, display: 'flex', gap: 6, alignItems: 'center' }}>
+              {['#ef4444','#f59e0b','#22c55e'].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
+              <span style={{ ...mono, fontSize: 11, color: DIM, marginLeft: 8 }}>terminal</span>
             </div>
-          ))}
-        </div>
-      </div>
+            <pre style={{ ...mono, fontSize: 12, lineHeight: 1.9, padding: '20px', margin: 0, color: MUTED, overflowX: 'auto' }}>
+              <span style={{ color: DIM }}># Python 3.11+ · Node 18+{'\n'}</span>
+              <span style={{ color: MINT }}>./scripts/dev_local.sh{'\n'}</span>
+              <span style={{ color: DIM }}>{'\n'}# or manual{'\n'}</span>
+              <span>python3 -m venv .venv{'\n'}</span>
+              <span>source .venv/bin/activate{'\n'}</span>
+              <span>pip install -r backend/requirements.txt{'\n'}</span>
+              <span style={{ color: MINT }}>uvicorn backend.main:app --reload --port 8001{'\n'}</span>
+              <span style={{ color: DIM }}>{'\n'}# frontend (new terminal){'\n'}</span>
+              <span>cd frontend && npm install{'\n'}</span>
+              <span style={{ color: MINT }}>npm run dev</span>
+            </pre>
+          </div>
 
-      {/* ── Docs ── */}
-      <div id="docs" style={S.section}>
-        <div style={S.sectionLabel}>Documentation</div>
-        <h2 style={S.sectionTitle}>Get running in 60 seconds.</h2>
-        <p style={S.sectionSub}>Python 3.11+ and Node 18+ required. No database, no accounts.</p>
-
-        <div style={{ ...S.codeBlock, marginBottom: 24 }}>
-          <span style={S.codeComment}># One command</span><br />
-          <span style={S.codeGreen}>./scripts/dev_local.sh</span>
-          <br /><br />
-          <span style={S.codeComment}># Or manual</span><br />
-          python3 -m venv .venv && source .venv/bin/activate<br />
-          pip install -r backend/requirements.txt<br />
-          uvicorn backend.main:app --reload --port 8001<br />
-          <br />
-          <span style={S.codeComment}># Frontend (new terminal)</span><br />
-          cd frontend && npm install && npm run dev
-        </div>
-
-        <div style={{ marginBottom: 20, fontSize: 11, color: '#475569', letterSpacing: '0.1em' }}>API REFERENCE</div>
-        <div style={{ ...S.card, padding: '8px 24px' }}>
-          {[
-            ['GET', '/intents?repo={owner/repo}', 'All intents + ParsedRepo for a repository'],
-            ['GET', '/occurrences?repo=...&intent_id=...', 'Call chain for a specific intent'],
-            ['POST', '/trace/start', 'Start a new trace session'],
-            ['POST', '/trace/ingest', 'Ingest OTel spans'],
-            ['GET', '/trace/{session_id}', 'Fetch trace events'],
-            ['POST', '/fix', 'AI fix suggestion (opt-in, requires ANTHROPIC_API_KEY)'],
-            ['WS', '/ws/trace/{session_id}', 'Live trace event stream'],
-          ].map(([method, path, desc]) => (
-            <div key={path} style={{ ...S.schemaField, gridTemplateColumns: '60px 280px 1fr' }}>
-              <span style={{ color: method === 'GET' ? '#4ade80' : method === 'WS' ? '#a78bfa' : '#fb923c', fontSize: 11, fontWeight: 700 }}>{method}</span>
-              <span style={{ color: '#e2e8f0', fontSize: 11 }}>{path}</span>
-              <span style={S.fieldDesc}>{desc}</span>
+          {/* api ref */}
+          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${BORDER}`, background: BG2 }}>
+              <span style={{ ...mono, fontSize: 11, color: DIM }}>API reference</span>
             </div>
-          ))}
+            <div style={{ padding: '8px 0' }}>
+              {[
+                { method: 'GET',  path: '/intents?repo={owner/repo}',      desc: 'ParsedRepo + all intents' },
+                { method: 'GET',  path: '/occurrences?repo=…&intent_id=…', desc: 'Call chain for intent' },
+                { method: 'POST', path: '/trace/start',                     desc: 'Start trace session' },
+                { method: 'POST', path: '/trace/ingest',                    desc: 'Ingest OTel spans' },
+                { method: 'GET',  path: '/trace/{session_id}',              desc: 'Fetch trace events' },
+                { method: 'WS',   path: '/ws/trace/{session_id}',           desc: 'Live event stream' },
+                { method: 'POST', path: '/fix',                             desc: 'AI fix suggestion (opt-in)' },
+              ].map(r => (
+                <div key={r.path} style={{
+                  display: 'grid',
+                  gridTemplateColumns: '44px 1fr',
+                  gap: 12,
+                  padding: '8px 16px',
+                  alignItems: 'start',
+                  borderBottom: `1px solid rgba(255,255,255,0.03)`,
+                }}>
+                  <span style={{
+                    ...mono, fontSize: 10, fontWeight: 700,
+                    color: r.method === 'GET' ? MINT : r.method === 'WS' ? '#a78bfa' : '#fb923c',
+                    paddingTop: 1,
+                  }}>
+                    {r.method}
+                  </span>
+                  <div>
+                    <div style={{ ...mono, fontSize: 11, color: TEXT }}>{r.path}</div>
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{r.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-
-        <div style={{ marginTop: 24, ...S.codeBlock }}>
-          <span style={S.codeComment}># Optional env vars (.env in project root)</span><br />
-          GITHUB_TOKEN=ghp_...          <span style={S.codeComment}># higher rate limits on large repos</span><br />
-          ANTHROPIC_API_KEY=sk-ant-...  <span style={S.codeComment}># AI fix suggestions (never auto-called)</span>
-        </div>
-      </div>
+      </section>
 
       {/* ── Footer ── */}
-      <footer style={S.footer}>
-        <span>
+      <footer style={{
+        borderTop: `1px solid ${BORDER}`,
+        padding: '28px 32px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        maxWidth: 1100,
+        margin: '0 auto',
+        flexWrap: 'wrap',
+        gap: 12,
+      }}>
+        <span style={{ fontSize: 12, color: DIM }}>
           made by foundarv enggers for internal usecase now for all —{' '}
-          <a href="https://foundarv.com" target="_blank" rel="noreferrer" style={{ color: '#4ade80', textDecoration: 'none' }}>
-            foundarv.com
-          </a>
+          <a href="https://foundarv.com" target="_blank" rel="noreferrer"
+            style={{ color: MINT, textDecoration: 'none' }}>foundarv.com</a>
         </span>
-        <span style={{ color: '#1e293b' }}>codeflow · open source</span>
+        <span style={{ ...mono, fontSize: 11, color: DIM }}>codeflow · open source</span>
       </footer>
+      <div style={{ borderTop: `1px solid ${BORDER}` }} />
+
     </div>
   );
 }
