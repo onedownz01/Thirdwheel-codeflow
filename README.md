@@ -1,12 +1,14 @@
 # Codeflow
 
-**Structured repository understanding for LLM agents.**
+**Intent-anchored code parser and execution tracer for LLM agents.**
 
 Codeflow converts any GitHub repository into a compact `ParsedRepo` graph — functions, intents, types, call edges — that an agent can reason over directly, without reading raw source files. It also runs as an interactive tracer: paste a URL, click an intent, watch the full execution chain animate in real time.
 
+**→ [thirdwheel-codeflow.vercel.app](https://thirdwheel-codeflow.vercel.app)**
+
 ---
 
-## Why This Exists
+## Why
 
 An LLM agent navigating an unfamiliar codebase has two options:
 
@@ -62,183 +64,116 @@ cd frontend && npm install && npm run dev
 
 Open `http://localhost:5173`, paste a GitHub repo (e.g. `tiangolo/fastapi`), hit **Parse**.
 
+> **Optional:** Set `GITHUB_TOKEN` in a `.env` file to raise the rate limit from 60 → 5,000 req/hr.
+
 ---
 
 ## Environment Variables
 
 All optional. Codeflow runs fully offline in Sim mode.
-GitHub fetch automatically falls back to archive mode when REST API quota is exhausted.
 
 | Variable | Description |
 |----------|-------------|
-| `GITHUB_TOKEN` | GitHub PAT — auto-detected by fetcher; raises rate limit from 60 → 5,000 req/hr |
-| `CODEFLOW_GITHUB_FETCH_MODE` | Set to `archive` to force non-API tarball fetch mode (useful for deterministic benchmarks) |
+| `GITHUB_TOKEN` | GitHub PAT — raises rate limit from 60 → 5,000 req/hr |
+| `CODEFLOW_GITHUB_FETCH_MODE` | Set to `archive` to force tarball fetch (useful for deterministic benchmarks) |
 | `ANTHROPIC_API_KEY` | Enables AI fix suggestions (opt-in, never called automatically) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTel collector endpoint for real span ingestion |
-| `DATABASE_URL` | Postgres connection string for trace persistence |
-
-```bash
-# .env (gitignored)
-GITHUB_TOKEN=ghp_...
-ANTHROPIC_API_KEY=sk-ant-...
-```
+| `DATABASE_URL` | Postgres connection string for trace persistence (falls back to in-memory) |
 
 ---
 
-## Benchmark — Codeflow as Agent Context
+## Benchmark
 
-> Full results: [`benchmark/FINAL_BENCHMARK_REPORT.md`](benchmark/FINAL_BENCHMARK_REPORT.md)
-> Run: 2026-03-30 · 14 repos · 15,000+ functions · 70 judged · Judge model: Gemini 2.5 Flash
-> Pass 1 refresh (2026-03-30 05:59 UTC): updated token metrics for `fastapi/full-stack-fastapi-template`, `encode/httpx`, and `encode/starlette`.
+> **19/21 repos** fully parsed and judged · Run date: 2026-03-30
+> Tokenizer: `cl100k_base` (tiktoken) · Retention judge: Gemini 2.5 Flash
 
-### Setup
+### Token Efficiency
 
-We measure three things independently:
+| Repo | Raw tokens | CF tokens | Saved | Ratio |
+|------|----------:|----------:|------:|------:|
+| `psf/requests` | 85,992 | 58,948 | +31.4% | 1.46× |
+| `pallets/click` | 166,675 | 127,028 | +23.8% | 1.31× |
+| `Textualize/rich` | 292,338 | 63,448 | +78.3% | 4.61× |
+| `agronholm/anyio` | 186,698 | 214,973 | -15.1% | 0.87× |
+| `httpie/httpie` | 119,789 | 93,545 | +21.9% | 1.28× |
+| `anthropics/anthropic-sdk-python` | 191,843 | 145,828 | +24.0% | 1.32× |
+| `openai/openai-python` | 183,840 | 179,999 | +2.1% | 1.02× |
+| `pallets/flask` | 135,633 | 114,155 | +15.8% | 1.19× |
+| `tiangolo/fastapi` | 31,506 | 33,531 | -6.4% | 0.94× |
+| `encode/starlette` | 141,009 | 135,252 | +4.1% | 1.04× |
+| `encode/httpx` | 134,082 | 80,637 | +39.9% | 1.66× |
+| `tortoise/tortoise-orm` | 112,448 | 68,270 | +39.3% | 1.65× |
+| `pydantic/pydantic` | 380,113 | 194,967 | +48.7% | 1.95× |
+| `Textualize/textual` | 66,195 | 51,777 | +21.8% | 1.28× |
+| `celery/celery` | 251,810 | 226,671 | +10.0% | 1.11× |
+| `fastapi/full-stack-fastapi-template` | 75,035 | 31,280 | +58.3% | 2.40× |
+| `tiangolo/asyncer` | 14,633 | 8,941 | +38.9% | 1.64× |
+| `supabase/supabase-js` | 242,974 | 30,639 | +87.4% | 7.93× |
+| `trpc/trpc` | 43,531 | 11,523 | +73.5% | 3.78× |
+| `vuejs/pinia` | 103,422 | 16,940 | +83.6% | 6.11× |
+| `shadcn-ui/ui` | 55,604 | 10,982 | +80.2% | 5.06× |
 
-- **Token efficiency** — raw source token count vs Codeflow `ParsedRepo` token count, via `tiktoken cl100k_base` (GPT-4/Claude proxy, ±5%)
-- **Comprehension quality** — ground truth extracted via `ast.walk` + regex; measures function recall, return type accuracy, route detection, docstring coverage
-- **Semantic retention** — for 5 representative functions per repo, Gemini 2.5 Flash scores a description generated from CF metadata (Pass A) and a description generated from the raw source body (Pass B), both evaluated against the actual source (meta-judge). Retention = Pass A score / Pass B score × 100.
+**Total:** `3,015,170 → 1,899,334` tokens · **Mean savings: 36.3%** · **Avg ratio: 2.36×**
 
-Gemini 2.5 Flash was selected as judge specifically to avoid circularity — Claude optimised the Codeflow output format; a different model judges whether that format preserves understanding.
+### Semantic Retention (LLM Judge)
 
----
+5 functions sampled per repo, scored by Gemini 2.5 Flash on signature accuracy, docstring fidelity, and call-chain completeness. Judge model was not involved in parsing.
 
-### Pass 1 — Token Efficiency
+| Repo | Saved | Retention |
+|------|------:|----------:|
+| `psf/requests` | 31% | **90%** |
+| `Textualize/rich` | 78% | **83%** |
+| `pallets/flask` | 16% | **80%** |
+| `fastapi/full-stack-fastapi-template` | 58% | **77%** |
+| `anthropics/anthropic-sdk-python` | 24% | **74%** |
+| `encode/httpx` | 40% | **72%** |
+| `tiangolo/fastapi` | -6% | **70%** |
+| `pallets/click` | 24% | **70%** |
+| `encode/starlette` | 4% | **70%** |
+| `sqlalchemy/sqlalchemy` | 43% | **64%** |
+| `openai/openai-python` | 1% | **62%** |
+| `zauberzeug/nicegui` | 42% | **54%** |
+| `httpie/httpie` | 22% | **45%** |
+| `pydantic/pydantic` | 48% | **56%** |
 
-![Token Savings](benchmark/assets/token_savings.svg)
+**Average retention: 69%** · **Function recall: 100%**
 
-| Repo | Category | Raw | CF | Saved | ×  |
-|------|:--------:|----:|---:|:-----:|:--:|
-| `Textualize/rich` | Library | 292,337 | 63,449 | **78.3%** | 4.61× |
-| `fastapi/full-stack-fastapi-template` | App | 75,035 | 31,282 | **58.3%** | 2.40× |
-| `pydantic/pydantic` | Library | 380,113 | 196,655 | **48.3%** | 1.93× |
-| `zauberzeug/nicegui` | App | 81,128 | 47,034 | **42.0%** | 1.72× |
-| `sqlalchemy/sqlalchemy` | Library | 281,448 | 161,589 | **42.6%** | 1.74× |
-| `encode/httpx` | SDK | 134,082 | 80,710 | **39.8%** | 1.66× |
-| `psf/requests` | SDK | 85,992 | 58,957 | **31.4%** | 1.46× |
-| `anthropics/anthropic-sdk-python` | SDK | 191,843 | 145,706 | **24.0%** | 1.32× |
-| `pallets/click` | CLI | 166,675 | 126,972 | **23.8%** | 1.31× |
-| `httpie/httpie` | CLI | 119,789 | 93,546 | **21.9%** | 1.28× |
-| `pallets/flask` | Framework | 135,633 | 114,082 | **15.9%** | 1.19× |
-| `encode/starlette` | Framework | 141,009 | 135,249 | **4.1%** | 1.04× |
-| `openai/openai-python` | SDK | 183,840 | 181,780 | **1.1%** | 1.01× |
-| `tiangolo/fastapi` | Framework | 31,506 | 33,527 | **-6.4%** | 0.94× |
-| **Total** | | **2,300,430** | **1,470,538** | **36.1%** | **1.56×** |
+### Benchmark Artifacts
 
-```
-  Textualize/rich                      78%  ████████████████████░░░░░
-  fastapi/full-stack-fastapi-template  58%  ███████████████░░░░░░░░░░
-  pydantic/pydantic                    48%  ████████████░░░░░░░░░░░░░
-  sqlalchemy/sqlalchemy                43%  ███████████░░░░░░░░░░░░░░
-  zauberzeug/nicegui                   42%  ███████████░░░░░░░░░░░░░░
-  encode/httpx                         40%  ██████████░░░░░░░░░░░░░░░
-  psf/requests                         31%  ████████░░░░░░░░░░░░░░░░░
-  anthropics/anthropic-sdk-python      24%  ██████░░░░░░░░░░░░░░░░░░░
-  pallets/click                        24%  ██████░░░░░░░░░░░░░░░░░░░
-  httpie/httpie                        22%  █████░░░░░░░░░░░░░░░░░░░░
-  pallets/flask                        16%  ████░░░░░░░░░░░░░░░░░░░░░
-  encode/starlette                      4%  █░░░░░░░░░░░░░░░░░░░░░░░░
-  openai/openai-python                  1%  ░░░░░░░░░░░░░░░░░░░░░░░░░
-  tiangolo/fastapi                     -6%  (parse overhead > body savings)
-```
+| File | Contents |
+|------|----------|
+| [`benchmark/CODEFLOW_BENCHMARK_REPORT.md`](benchmark/CODEFLOW_BENCHMARK_REPORT.md) | Full 21-repo token efficiency report |
+| [`benchmark/FINAL_BENCHMARK_REPORT.md`](benchmark/FINAL_BENCHMARK_REPORT.md) | Combined 3-pass benchmark (token + recall + LLM judge) |
+| [`benchmark/JUDGE_REPORT.md`](benchmark/JUDGE_REPORT.md) | Raw Gemini 2.5 Flash judge output |
+| [`benchmark/UNDERSTANDING_REPORT.md`](benchmark/UNDERSTANDING_REPORT.md) | Parser coverage and extraction quality |
 
-Compression correlates with docstring density, test file volume, and comment ratio. Framework internals (FastAPI, Starlette) are near-parity because their source *is* the semantics — stripping the body strips the signal.
-
----
-
-### Pass 2 — Comprehension Quality (Ground Truth)
-
-| Metric | Result |
-|--------|--------|
-| Function recall | **100%** across all 14 repos |
-| Return type accuracy | **100%** |
-| Route detection | 50–100% (framework pattern–dependent) |
-| Docstring coverage | 3–52% (avg 17%) |
-| Total intents extracted | 3,869 |
-
-Zero missed functions across 15,000+ ground-truth entries. Route recall varies because some frameworks use non-decorator routing patterns (class-based views, `include_router` without `path=`) that require deeper AST traversal.
-
----
-
-### Pass 3 — Semantic Retention (LLM Judge)
-
-![Semantic Retention](benchmark/assets/retention.svg)
-
-| Repo | CF | Raw | Retention | Grade |
-|------|:--:|:---:|:---------:|:-----:|
-| `psf/requests` | 7.0 | 7.8 | **90%** | A |
-| `Textualize/rich` | 6.8 | 8.2 | **83%** | A |
-| `pallets/flask` | 7.2 | 9.0 | **80%** | A |
-| `fastapi/full-stack-fastapi-template` | 7.2 | 9.4 | **77%** | B+ |
-| `anthropics/anthropic-sdk-python` | 7.0 | 9.4 | **74%** | B+ |
-| `encode/httpx` | 6.8 | 9.4 | **72%** | B+ |
-| `encode/starlette` | 6.2 | 8.8 | **70%** | B+ |
-| `pallets/click` | 6.6 | 9.4 | **70%** | B+ |
-| `tiangolo/fastapi` | 7.0 | 10.0 | **70%** | B+ |
-| `sqlalchemy/sqlalchemy` | 5.6 | 8.8 | **64%** | B |
-| `openai/openai-python` | 6.0 | 9.6 | **62%** | B |
-| `pydantic/pydantic` | 5.6 | 10.0 | **56%** | C |
-| `zauberzeug/nicegui` | 5.2 | 9.6 | **54%** | C |
-| `httpie/httpie` | 3.8 | 8.4 | **45%** | D |
-| **Average** | **6.3** | **9.1** | **69%** | **B** |
-
-**By category:**
-
-| Category | Repos | Retention | Interpretation |
-|----------|:-----:|:---------:|----------------|
-| Python Frameworks | 3 | **73%** | Medium-density; typed signatures carry intent |
-| Python SDKs / Libraries | 4 | **74%** | Strong typing compensates for missing body |
-| Python App Code | 2 | **65%** | Routes captured; business rules need body |
-| Mixed / Large Libraries | 3 | **67%** | Variable — docstring density is the key factor |
-| CLI Tools | 2 | **58%** | Command structure captured; branching logic opaque |
-
-**Interpretation:**
-
-At 69% average retention with 36% token savings, the tradeoff is real and measurable. The right frame is task-type:
-
-- **Navigation tasks** ("which function handles password reset?", "what routes does this service expose?"): CF metadata is sufficient. 100% function recall and the intent index answer these directly.
-- **Behavioural tasks** ("does this prevent SQL injection?", "what happens when the token is expired?"): raw body wins. CF misses implementation-level constraints — security checks, error conditions, invariants — that aren't expressed in signatures.
-- **The docstring effect**: Functions with docstrings score ~2 points higher in CF pass. The single highest-leverage improvement is adding docstrings to your source; Codeflow surfaces them; agents read them.
-
-**Verdict distribution across 70 judged functions:**
-
-```
-  B_clearly_better    57/70  (81%)  — raw body provides significantly more understanding
-  A_adequate           2/70  ( 3%)  — CF metadata was sufficient on its own
-  roughly_equal        0/70  ( 0%)  — tied
-  (11 ties/errors excluded from distribution)
-```
-
----
-
-### Reproducing the Benchmark
+### Reproducing
 
 ```bash
 pip install tiktoken tree-sitter tree-sitter-python tree-sitter-javascript google-generativeai
 
-GEMINI_API_KEY=... GITHUB_TOKEN=... python -m benchmark.final_benchmark
-# → benchmark/FINAL_BENCHMARK_REPORT.md
-```
+# Token benchmark (21 repos)
+GITHUB_TOKEN=... python -m benchmark.full_benchmark
 
-The benchmark script is `benchmark/final_benchmark.py`. It fetches each repo from GitHub, runs the Codeflow parser locally, computes token counts with tiktoken, extracts ground truth with `ast.walk`, then calls Gemini 2.5 Flash for the 3-pass judge evaluation. No other external services required.
+# Combined 3-pass benchmark with LLM judge
+GEMINI_API_KEY=... GITHUB_TOKEN=... python -m benchmark.final_benchmark
+```
 
 ---
 
 ## ParsedRepo Schema
 
-The output of the parser is a single `ParsedRepo` object:
-
 ```python
 class ParsedFunction(BaseModel):
-    id: str                    # Stable short hash
+    id: str                    # Stable short hash — "fn:a1b2c3"
     name: str
     file: str
     type: FunctionType         # route | handler | service | db | auth | util | component | hook | other
-    params: list[Param]        # name, type, direction (in/out)
+    params: list[Param]        # { name, type, direction }
     line: int
-    return_type: str           # Extracted from type annotation
+    return_type: str
     docstring: str             # First line of docstring / JSDoc
-    calls: list[str]           # Outbound call targets
+    calls: list[str]           # Outbound call ids
 
 class ParsedRepo(BaseModel):
     schema_version: str
@@ -253,7 +188,68 @@ class ParsedRepo(BaseModel):
     parsed_at: str
 ```
 
-`fn_type_index` and `file_index` let an agent answer "show me all routes" or "what functions are in auth.py" in O(1) without scanning the full function list.
+`fn_type_index` and `file_index` give agents O(1) lookups — "all routes" or "functions in auth.py" — without scanning the full list.
+
+---
+
+## API Reference
+
+```
+GET  /intents?repo={owner/repo}           ParsedRepo + all detected intents
+GET  /occurrences?repo=...&intent_id=...  Call chain for one intent
+POST /trace/start                         Start a trace session
+POST /trace/ingest                        Ingest OTel spans
+GET  /trace/{session_id}                  Fetch trace events
+POST /fix                                 AI fix suggestion (opt-in)
+DELETE /cache/{repo}                      Clear cached parse
+GET  /health                              Health check
+WS   /ws/trace/{session_id}              Live trace event stream
+```
+
+Full docs: [thirdwheel-codeflow.vercel.app/docs](https://thirdwheel-codeflow.vercel.app/docs)
+
+---
+
+## Repo Layout
+
+```
+backend/
+  main.py                 FastAPI app + all routes
+  parser/                 GitHub fetch, Tree-sitter AST, graph builder
+  models/                 Pydantic schemas (ParsedRepo, Intent, TraceEvent)
+  tracer/                 Simulator, OTel bridge, Python sys.settrace
+  ai/                     Fix suggester (Anthropic, opt-in)
+  services/               Intent fusion, metadata store, OTel state
+
+frontend/
+  src/
+    pages/                LandingPage, BenchmarkPage, DocsPage, LaunchPage
+    components/           FlowCanvas, IntentPanel, TracePanel, TopBar
+    store/                Zustand state
+    hooks/                API + WebSocket hooks
+
+benchmark/
+  full_benchmark.py       21-repo token benchmark
+  final_benchmark.py      3-pass benchmark with LLM judge
+  judge_benchmark.py      Standalone Gemini judge runner
+  CODEFLOW_BENCHMARK_REPORT.md
+  FINAL_BENCHMARK_REPORT.md
+  JUDGE_REPORT.md
+  UNDERSTANDING_REPORT.md
+```
+
+---
+
+## Supported Patterns
+
+| Language | Detected |
+|----------|----------|
+| Python / FastAPI | `@app.get/post/put/delete`, `@router.*` |
+| Python / Flask | `@app.route()`, blueprint routes |
+| Python / CLI | `@click.command()`, `argparse` subcommands |
+| Python / Class APIs | Public methods on exported classes |
+| TypeScript / React | `onClick`, `onSubmit`, `onChange`, `onKeyDown` handlers |
+| Next.js | `'use server'` directives, server actions |
 
 ---
 
@@ -269,55 +265,12 @@ class ParsedRepo(BaseModel):
 
 ---
 
-## API Reference
+## Notes
 
-```
-GET  /intents?repo={owner/repo}          List all detected intents
-GET  /occurrences?repo=...&intent_id=... Get call chain for an intent
-POST /trace/start                        Start a trace session
-POST /trace/ingest                       Ingest OTel spans
-GET  /trace/{session_id}                 Fetch trace events
-POST /fix                                Request AI fix suggestion (opt-in)
-DELETE /cache/{repo}                     Clear cached parse for a repo
-GET  /telemetry/status                   OTel connection status
-WS   /ws/trace/{session_id}             Live trace event stream
-```
-
----
-
-## Repo Layout
-
-```
-backend/
-  main.py              FastAPI app + routes
-  parser/              GitHub fetch, AST parsing, graph builder
-  models/              Pydantic schemas (ParsedRepo, Intent, TraceEvent)
-  tracer/              Simulator, OTel bridge, Python sys tracer
-  ai/                  Fix suggester (Anthropic, opt-in)
-
-frontend/
-  src/
-    components/        FlowCanvas, IntentPanel, TracePanel, TopBar
-    store/             Zustand state
-    hooks/             API + WebSocket hooks
-
-benchmark/
-  final_benchmark.py   14-repo combined benchmark (token + quality + judge)
-  FINAL_BENCHMARK_REPORT.md
-```
-
----
-
-## Supported Patterns
-
-| Language | Detected |
-|----------|----------|
-| Python / FastAPI | `@app.get/post/put/delete`, `@router.*` |
-| Python / Flask | `@app.route()`, blueprint routes |
-| Python / CLI | `@click.command()`, `argparse` subcommands, `ArgumentParser` |
-| Python / Class APIs | Public methods on exported classes |
-| TypeScript / React | `onClick`, `onSubmit`, `onChange`, `onKeyDown` handlers |
-| Next.js | `'use server'` directives, server actions |
+- **No data leaves your machine in Sim mode.** The only external call is GitHub's public API.
+- **AI fixes are opt-in.** `ANTHROPIC_API_KEY` is never called automatically.
+- **OTel mode** accepts spans via `POST /trace/ingest` without a running collector. Falls back to simulation when no spans arrive within the session window.
+- **In-memory by default.** Set `DATABASE_URL` to persist trace history across restarts.
 
 ---
 
@@ -328,15 +281,3 @@ benchmark/
 | `Space` | Play / pause trace playback |
 | `R` | Reset active trace |
 | `F` | Fit graph to view |
-
----
-
-## Notes
-
-- **No data leaves your machine in Sim mode.** The only external call is GitHub's public API.
-- **AI fixes are opt-in.** `ANTHROPIC_API_KEY` is never called automatically — only when you explicitly request a fix suggestion.
-- **OTel mode** accepts spans via `POST /trace/ingest` even without a running collector. It falls back to simulation when no spans arrive within the session window.
-
----
-
-Built by [Thirdwheel](https://github.com/thirdwheel-dev).
