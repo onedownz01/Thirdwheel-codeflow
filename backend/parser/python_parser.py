@@ -97,10 +97,42 @@ def _extract_function(node, path: str, lines: list[str]) -> ParsedFunction | Non
         type=_infer_type(name, path, decorators, body_text),
         params=params,
         line=line,
+        return_type=_extract_return_type(node),
+        docstring=_extract_docstring(node),
         calls=_extract_calls(body_text),
-        description=f"Python function {name}",
     )
 
+
+
+def _extract_return_type(node) -> str:
+    ret_node = node.child_by_field_name("return_type")
+    if not ret_node:
+        return ""
+    return ret_node.text.decode("utf-8").lstrip("->").strip()
+
+
+def _extract_docstring(node) -> str:
+    """Extract the first line of a function's docstring, if present."""
+    body_node = node.child_by_field_name("body")
+    if not body_node:
+        return ""
+    for child in body_node.children:
+        if child.type != "expression_statement":
+            continue
+        for sub in child.children:
+            if sub.type == "string":
+                raw = sub.text.decode("utf-8").strip()
+                # Strip triple then single/double quotes
+                for q in ('"""', "'''", '"', "'"):
+                    if raw.startswith(q) and raw.endswith(q) and len(raw) > 2 * len(q):
+                        raw = raw[len(q):-len(q)]
+                        break
+                for line in raw.splitlines():
+                    line = line.strip()
+                    if line:
+                        return line[:150]
+        break  # only the first statement can be a docstring
+    return ""
 
 
 def _extract_params(node) -> list[Param]:
@@ -196,6 +228,10 @@ def _infer_type(name: str, path: str, decorators: str, body: str) -> FunctionTyp
     d = decorators.lower()
     b = body.lower()
 
+    # Test functions/files are never handlers — classify as OTHER
+    if n.startswith("test_") or "/test" in p or p.split("/")[-1].startswith("test_"):
+        return FunctionType.OTHER
+
     if any(x in d for x in ("@app.", "@router.", "@bp.")):
         return FunctionType.ROUTE
     if any(x in p for x in ("auth", "token", "jwt", "middleware")) or any(
@@ -208,9 +244,14 @@ def _infer_type(name: str, path: str, decorators: str, body: str) -> FunctionTyp
         x in b for x in ("session.query", "execute(", "objects.create", "objects.filter")
     ):
         return FunctionType.DB
-    if any(x in p for x in ("util", "helper", "common", "lib")):
+    if any(x in p for x in ("util", "helper", "common", "lib", "transport", "ssl", "crypto", "config", "codec")):
         return FunctionType.UTIL
-    if any(x in n for x in ("handle", "process", "submit", "create", "update", "delete")):
+    # Handler: name must START WITH an action verb (not just contain it as substring)
+    _action_prefixes = ("handle_", "process_", "submit_", "dispatch_", "on_")
+    _action_exact = re.compile(
+        r"^(create|update|delete|get|fetch|send|post|put|patch|save|load|run|execute)_"
+    )
+    if n.startswith(_action_prefixes) or _action_exact.match(n):
         return FunctionType.HANDLER
     return FunctionType.OTHER
 
@@ -261,14 +302,6 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
             method = "GET"  # Flask default when methods= is omitted
         label = f"{method} {route_path}"
         canonical = f"api.{method.lower()}.{fn.name}"
-        evidence = IntentEvidence(
-            kind=EvidenceKind.BACKEND_ROUTE,
-            source_file=fn.file,
-            line=fn.line,
-            symbol=fn.name,
-            excerpt=decorators,
-            weight=0.9,
-        )
         return Intent(
             id=f"intent:{fn.file}:{fn.name}:{fn.line}",
             canonical_id=canonical,
@@ -280,7 +313,7 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
             group="Backend",
             status="candidate",
             confidence=0.88,
-            evidence=[evidence],
+            evidence=[IntentEvidence(kind=EvidenceKind.BACKEND_ROUTE, weight=0.9)],
         )
 
     method = m.group(2).upper()
@@ -288,15 +321,6 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
     label = f"{method} {route_path}"
     # Include fn.name so two handlers at the same path (different routers) stay distinct.
     canonical = f"api.{method.lower()}.{fn.name}"
-
-    evidence = IntentEvidence(
-        kind=EvidenceKind.BACKEND_ROUTE,
-        source_file=fn.file,
-        line=fn.line,
-        symbol=fn.name,
-        excerpt=decorators,
-        weight=0.9,
-    )
 
     return Intent(
         id=f"intent:{fn.file}:{fn.name}:{fn.line}",
@@ -309,7 +333,7 @@ def _build_route_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
         group="Backend",
         status="candidate",
         confidence=0.88,
-        evidence=[evidence],
+        evidence=[IntentEvidence(kind=EvidenceKind.BACKEND_ROUTE, weight=0.9)],
     )
 
 
@@ -325,14 +349,6 @@ def _build_cli_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
         command_name = fn.name.replace("_", "-")
 
     label = f"CLI {command_name}"
-    evidence = IntentEvidence(
-        kind=EvidenceKind.CLI_COMMAND,
-        source_file=fn.file,
-        line=fn.line,
-        symbol=fn.name,
-        excerpt=decorators[:140],
-        weight=0.8,
-    )
     return Intent(
         id=f"intent:{fn.file}:{fn.name}:cli:{fn.line}",
         canonical_id=f"actions.cli.{_slug(command_name)}",
@@ -344,8 +360,7 @@ def _build_cli_intent(fn: ParsedFunction, lines: list[str]) -> Intent | None:
         group="Actions",
         status="candidate",
         confidence=0.8,
-        evidence=[evidence],
-        aliases=[fn.name, command_name],
+        evidence=[IntentEvidence(kind=EvidenceKind.CLI_COMMAND, weight=0.8)],
     )
 
 
@@ -368,17 +383,7 @@ def _extract_argparse_intents(path: str, content: str) -> list[Intent]:
                 group="Actions",
                 status="candidate",
                 confidence=0.64,
-                evidence=[
-                    IntentEvidence(
-                        kind=EvidenceKind.CLI_COMMAND,
-                        source_file=path,
-                        line=idx,
-                        symbol=command_name,
-                        excerpt=line.strip()[:140],
-                        weight=0.64,
-                    )
-                ],
-                aliases=[command_name],
+                evidence=[IntentEvidence(kind=EvidenceKind.CLI_COMMAND, weight=0.64)],
             )
         )
     return intents
@@ -436,17 +441,7 @@ def _extract_script_intents(path: str, content: str) -> list[Intent]:
             group="Scripts",
             status="candidate",
             confidence=0.62,
-            evidence=[
-                IntentEvidence(
-                    kind=EvidenceKind.CLI_COMMAND,
-                    source_file=path,
-                    line=1,
-                    symbol=script_name,
-                    excerpt=f"python {path} {flags_str}".strip(),
-                    weight=0.62,
-                )
-            ],
-            aliases=[script_name],
+            evidence=[IntentEvidence(kind=EvidenceKind.CLI_COMMAND, weight=0.62)],
         )
     ]
 
@@ -534,17 +529,7 @@ def _extract_class_api_intents(
                     group=class_name,
                     status="candidate",
                     confidence=0.55,
-                    evidence=[
-                        IntentEvidence(
-                            kind=EvidenceKind.SYMBOL_HEURISTIC,
-                            source_file=fn.file,
-                            line=fn.line,
-                            symbol=f"{class_name}.{fn.name}",
-                            excerpt=f"class {class_name}: def {fn.name}()",
-                            weight=0.55,
-                        )
-                    ],
-                    aliases=[fn.name, f"{class_name}.{fn.name}"],
+                    evidence=[IntentEvidence(kind=EvidenceKind.SYMBOL_HEURISTIC, weight=0.55)],
                 )
             )
 

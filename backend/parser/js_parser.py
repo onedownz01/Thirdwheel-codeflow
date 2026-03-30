@@ -64,11 +64,11 @@ def _select_language(path: str) -> Language:
 
 def _walk(node, path: str, content: str, functions: list[ParsedFunction], intents: list[Intent]) -> None:
     if node.type in ("function_declaration", "method_definition"):
-        fn = _extract_named_function(node, path)
+        fn = _extract_named_function(node, path, content)
         if fn:
             functions.append(fn)
     elif node.type == "variable_declarator":
-        fn = _extract_arrow_function(node, path)
+        fn = _extract_arrow_function(node, path, content)
         if fn:
             functions.append(fn)
     elif node.type == "jsx_attribute":
@@ -135,17 +135,7 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
                     group=_infer_group(path, label),
                     status="candidate",
                     confidence=0.68,
-                    evidence=[
-                        IntentEvidence(
-                            kind=EvidenceKind.FORM_ACTION,
-                            source_file=path,
-                            line=idx,
-                            symbol=handler,
-                            excerpt=line.strip()[:140],
-                            weight=0.68,
-                        )
-                    ],
-                    aliases=[handler],
+                    evidence=[IntentEvidence(kind=EvidenceKind.FORM_ACTION, weight=0.68)],
                 )
             )
 
@@ -165,17 +155,7 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
                     group="Discovery",
                     status="candidate",
                     confidence=0.62,
-                    evidence=[
-                        IntentEvidence(
-                            kind=EvidenceKind.ROUTER_TRANSITION,
-                            source_file=path,
-                            line=idx,
-                            symbol="router.push|replace|navigate",
-                            excerpt=line.strip()[:140],
-                            weight=0.62,
-                        )
-                    ],
-                    aliases=["route_transition"],
+                    evidence=[IntentEvidence(kind=EvidenceKind.ROUTER_TRANSITION, weight=0.62)],
                 )
             )
 
@@ -195,17 +175,7 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
                     group=_infer_group(path, label),
                     status="candidate",
                     confidence=0.72,
-                    evidence=[
-                        IntentEvidence(
-                            kind=EvidenceKind.UI_EVENT,
-                            source_file=path,
-                            line=idx,
-                            symbol=handler,
-                            excerpt=line.strip()[:140],
-                            weight=0.72,
-                        )
-                    ],
-                    aliases=[handler],
+                    evidence=[IntentEvidence(kind=EvidenceKind.UI_EVENT, weight=0.72)],
                 )
             )
 
@@ -225,17 +195,7 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
                     group="Actions",
                     status="candidate",
                     confidence=0.66,
-                    evidence=[
-                        IntentEvidence(
-                            kind=EvidenceKind.CLI_COMMAND,
-                            source_file=path,
-                            line=idx,
-                            symbol=command_name,
-                            excerpt=line.strip()[:140],
-                            weight=0.66,
-                        )
-                    ],
-                    aliases=[command_name],
+                    evidence=[IntentEvidence(kind=EvidenceKind.CLI_COMMAND, weight=0.66)],
                 )
             )
 
@@ -256,17 +216,7 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
                     group="Actions",
                     status="candidate",
                     confidence=0.86,
-                    evidence=[
-                        IntentEvidence(
-                            kind=EvidenceKind.SERVER_ACTION,
-                            source_file=path,
-                            line=line,
-                            symbol=handler,
-                            excerpt=match.group(0).splitlines()[0][:140],
-                            weight=0.86,
-                        )
-                    ],
-                    aliases=[handler],
+                    evidence=[IntentEvidence(kind=EvidenceKind.SERVER_ACTION, weight=0.86)],
                 )
             )
 
@@ -274,7 +224,30 @@ def _extract_content_level_intents(path: str, content: str) -> list[Intent]:
 
 
 
-def _extract_named_function(node, path: str) -> ParsedFunction | None:
+def _extract_return_type(node) -> str:
+    for child in node.children:
+        if child.type == "type_annotation":
+            return child.text.decode("utf-8").lstrip(":").strip()
+    return ""
+
+
+_JSDOC_RE = re.compile(r"/\*\*\s*(.*?)(?:\*/|\n)", re.DOTALL)
+
+def _extract_docstring(node, content: str) -> str:
+    """Extract first sentence from a preceding JSDoc /** ... */ comment."""
+    start_byte = node.start_byte
+    # Look back up to 300 bytes before the function for a JSDoc comment
+    search_area = content[max(0, start_byte - 300): start_byte]
+    m = _JSDOC_RE.search(search_area)
+    if not m:
+        return ""
+    raw = m.group(1).strip()
+    # Strip leading * from JSDoc lines
+    first_line = raw.splitlines()[0].lstrip("* ").strip() if raw else ""
+    return first_line[:150]
+
+
+def _extract_named_function(node, path: str, content: str = "") -> ParsedFunction | None:
     name_node = node.child_by_field_name("name")
     if not name_node:
         return None
@@ -290,13 +263,14 @@ def _extract_named_function(node, path: str) -> ParsedFunction | None:
         type=_infer_type(name, path),
         params=params,
         line=line,
+        return_type=_extract_return_type(node),
+        docstring=_extract_docstring(node, content),
         calls=_extract_calls(node.text.decode("utf-8")),
-        description=f"JS function {name}",
     )
 
 
 
-def _extract_arrow_function(node, path: str) -> ParsedFunction | None:
+def _extract_arrow_function(node, path: str, content: str = "") -> ParsedFunction | None:
     name_node = node.child_by_field_name("name")
     value_node = node.child_by_field_name("value")
     if not name_node or not value_node:
@@ -314,8 +288,9 @@ def _extract_arrow_function(node, path: str) -> ParsedFunction | None:
         type=_infer_type(name, path),
         params=_extract_params(value_node),
         line=line,
+        return_type=_extract_return_type(value_node),
+        docstring=_extract_docstring(node, content),
         calls=_extract_calls(value_node.text.decode("utf-8")),
-        description=f"JS function {name}",
     )
 
 
@@ -342,15 +317,6 @@ def _extract_jsx_intent(node, path: str, content: str) -> Intent | None:
     label = _infer_label(node, content) or _humanize(handler_name)
     canonical = _canonical_id(path, label, handler_name)
 
-    evidence = IntentEvidence(
-        kind=EvidenceKind.UI_EVENT,
-        source_file=path,
-        line=node.start_point[0] + 1,
-        symbol=handler_name,
-        excerpt=f"{attr}={value_text}",
-        weight=0.75,
-    )
-
     return Intent(
         id=f"intent:{path}:{handler_name}:{node.start_point[0] + 1}",
         canonical_id=canonical,
@@ -362,8 +328,7 @@ def _extract_jsx_intent(node, path: str, content: str) -> Intent | None:
         group=_infer_group(path, label),
         status="candidate",
         confidence=0.75,
-        evidence=[evidence],
-        aliases=[handler_name],
+        evidence=[IntentEvidence(kind=EvidenceKind.UI_EVENT, weight=0.75)],
     )
 
 
@@ -402,7 +367,6 @@ def _extract_route_signal(node, path: str) -> tuple[ParsedFunction | None, Inten
                 Param(name="res", type="Response", direction="out"),
             ],
             line=line,
-            description="Route handler",
         )
 
         intent = Intent(
@@ -416,16 +380,7 @@ def _extract_route_signal(node, path: str) -> tuple[ParsedFunction | None, Inten
             group="Backend",
             status="candidate",
             confidence=0.88,
-            evidence=[
-                IntentEvidence(
-                    kind=EvidenceKind.BACKEND_ROUTE,
-                    source_file=path,
-                    line=line,
-                    symbol=name,
-                    excerpt=text[:120],
-                    weight=0.88,
-                )
-            ],
+            evidence=[IntentEvidence(kind=EvidenceKind.BACKEND_ROUTE, weight=0.88)],
         )
         return fn, intent
 
@@ -454,17 +409,7 @@ def _extract_network_signal(node, path: str) -> Intent | None:
         group="Actions",
         status="candidate",
         confidence=0.48,
-        evidence=[
-            IntentEvidence(
-                kind=EvidenceKind.NETWORK_MUTATION,
-                source_file=path,
-                line=node.start_point[0] + 1,
-                symbol="fetch/axios",
-                excerpt=text[:120],
-                weight=0.48,
-            )
-        ],
-        aliases=["network_request"],
+        evidence=[IntentEvidence(kind=EvidenceKind.NETWORK_MUTATION, weight=0.48)],
     )
 
 
@@ -636,7 +581,6 @@ def _dedupe_intents(intents: list[Intent]) -> list[Intent]:
         if not existing:
             by_key[key] = intent
             continue
-        existing.aliases = sorted(set(existing.aliases + intent.aliases + [intent.label]))
         existing.evidence.extend(intent.evidence)
         existing.confidence = _compute_confidence(existing)
     return list(by_key.values())

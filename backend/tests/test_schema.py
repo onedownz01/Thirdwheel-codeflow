@@ -12,14 +12,7 @@ from backend.models.schema import (
 
 def test_schema_models_roundtrip():
     fn = ParsedFunction(id="a:b:1", name="b", file="a.py", type="other")
-    evidence = IntentEvidence(
-        kind="ui_event",
-        source_file="App.tsx",
-        line=12,
-        symbol="handleSubmit",
-        excerpt="onSubmit={handleSubmit}",
-        weight=0.7,
-    )
+    evidence = IntentEvidence(kind="ui_event", weight=0.7)
     intent = Intent(
         id="intent:1",
         canonical_id="auth.signup.submit",

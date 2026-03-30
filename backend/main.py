@@ -196,7 +196,7 @@ async def parse_repo(payload: Annotated[Any, Body()]) -> ApiEnvelope:
         isinstance(payload, dict) and payload.get("bust_cache", False)
     )
     if key in repo_cache and not bust:
-        return envelope(repo_cache[key].model_dump())
+        return envelope(repo_cache[key].model_dump(exclude={"edges"}, exclude_defaults=True))
 
     try:
         contents, branch = await fetch_repo(normalized_repo, req.token)
@@ -214,7 +214,7 @@ async def parse_repo(payload: Annotated[Any, Body()]) -> ApiEnvelope:
 
     repo_cache[key] = parsed
     await metadata_store.upsert_intents(key, parsed.intents)
-    return envelope(parsed.model_dump())
+    return envelope(parsed.model_dump(exclude={"edges"}, exclude_defaults=True))
 
 
 @app.get("/intents")

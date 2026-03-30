@@ -29,10 +29,6 @@ export interface IntentEvidence {
     | 'symbol_heuristic'
     | 'cli_command'
     | 'server_action';
-  source_file: string;
-  line: number;
-  symbol: string;
-  excerpt: string;
   weight: number;
 }
 
@@ -43,9 +39,9 @@ export interface ParsedFunction {
   type: FunctionType;
   params: Param[];
   line: number;
-  description: string;
+  return_type?: string;
+  docstring?: string;
   calls: string[];
-  called_by: string[];
 }
 
 export interface Intent {
@@ -62,7 +58,6 @@ export interface Intent {
   status: IntentStatus;
   confidence: number;
   evidence: IntentEvidence[];
-  aliases: string[];
   frequency: number;
   failure_rate: number;
 }
@@ -80,9 +75,11 @@ export interface ParsedRepo {
   branch: string;
   functions: ParsedFunction[];
   intents: Intent[];
-  edges: Edge[];
+  edges?: Edge[];
   file_count: number;
   parsed_at: string;
+  fn_type_index: Record<string, string[]>;
+  file_index: Record<string, string[]>;
 }
 
 export type TraceEventType =

@@ -38,9 +38,6 @@ def build_graph(
                 seen_edges.add(edge_key)
                 edges.append(Edge(id=f"e_{len(edges)}", source=fn.id, target=target.id, type="calls"))
 
-            if fn.id not in target.called_by:
-                target.called_by.append(fn.id)
-
         fn.calls = resolved_calls
 
     resolved_intents: list[Intent] = []
@@ -52,7 +49,6 @@ def build_graph(
             entry = same_file[0] if same_file else matches[0]
             intent.handler_fn_id = entry.id
             intent.flow_ids = bfs_flow(entry.id, by_id, max_depth=10)
-            intent.hop_count = len(intent.flow_ids)
         else:
             # Handler is likely a callback prop — find any function from same file as fallback
             same_file_fns = [fn for fn in functions if fn.file == intent.source_file]
@@ -60,16 +56,14 @@ def build_graph(
                 entry = same_file_fns[0]
                 intent.handler_fn_id = entry.id
                 intent.flow_ids = bfs_flow(entry.id, by_id, max_depth=6)
-                intent.hop_count = len(intent.flow_ids)
             else:
                 intent.flow_ids = []
-                intent.hop_count = 0
 
         resolved_intents.append(intent)
 
     merged_intents = _merge_intents(resolved_intents)
 
-    return ParsedRepo(
+    parsed = ParsedRepo(
         repo=repo,
         branch=branch,
         functions=functions,
@@ -78,7 +72,36 @@ def build_graph(
         file_count=len({f.file for f in functions}),
         parsed_at=datetime.now(timezone.utc).isoformat(),
     )
+    return _remap_short_ids(parsed)
 
+
+
+def _remap_short_ids(repo: ParsedRepo) -> ParsedRepo:
+    """Replace long file:name:line IDs with compact f0, f1, f2... IDs throughout."""
+    id_map: dict[str, str] = {fn.id: f"f{i}" for i, fn in enumerate(repo.functions)}
+
+    for fn in repo.functions:
+        fn.id = id_map[fn.id]
+        fn.calls = [id_map[c] for c in fn.calls if c in id_map]
+
+    for intent in repo.intents:
+        intent.handler_fn_id = id_map.get(intent.handler_fn_id, intent.handler_fn_id)
+        intent.flow_ids = [id_map[fid] for fid in intent.flow_ids if fid in id_map]
+
+    for edge in repo.edges:
+        edge.source = id_map.get(edge.source, edge.source)
+        edge.target = id_map.get(edge.target, edge.target)
+
+    # Build lookup indexes using the now-short IDs
+    fn_type_index: dict[str, list[str]] = {}
+    file_index: dict[str, list[str]] = {}
+    for fn in repo.functions:
+        fn_type_index.setdefault(fn.type, []).append(fn.id)
+        file_index.setdefault(fn.file, []).append(fn.id)
+    repo.fn_type_index = fn_type_index
+    repo.file_index = file_index
+
+    return repo
 
 
 def bfs_flow(start_id: str, by_id: dict[str, ParsedFunction], max_depth: int = 10) -> list[str]:
@@ -123,13 +146,11 @@ def _merge_intents(intents: list[Intent]) -> list[Intent]:
             by_canonical[key] = intent
             continue
 
-        existing.aliases = sorted(set(existing.aliases + intent.aliases + [intent.label]))
         existing.evidence.extend(intent.evidence)
         existing.confidence = min(0.99, max(existing.confidence, intent.confidence))
 
         if len(intent.flow_ids) > len(existing.flow_ids):
             existing.flow_ids = intent.flow_ids
-            existing.hop_count = intent.hop_count
             existing.handler_fn_id = intent.handler_fn_id
 
     merged = list(by_canonical.values())

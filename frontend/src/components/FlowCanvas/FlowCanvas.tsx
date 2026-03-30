@@ -17,6 +17,17 @@ import type { ParsedRepo } from '../../types';
 
 const nodeTypes = { functionBlock: FunctionBlock };
 const elk = new ELK();
+
+function deriveEdges(repo: ParsedRepo): Edge[] {
+  return repo.functions.flatMap((fn) =>
+    fn.calls.map((target) => ({
+      id: `${fn.id}>${target}`,
+      source: fn.id,
+      target,
+      type: 'calls' as const,
+    }))
+  );
+}
 const LARGE_GRAPH_THRESHOLD = 700;
 const LARGE_GRAPH_NODE_CAP = 480;
 const LARGE_GRAPH_EDGE_CAP = 2200;
@@ -67,7 +78,7 @@ function FlowCanvasInner() {
 
     const flowSet = new Set(activeIntent?.flow_ids || []);
     const renderIds = selectRenderableNodeIds(repo, flowSet);
-    const repoKey = `${repo.repo}::${repo.functions.length}::${repo.edges.length}`;
+    const repoKey = `${repo.repo}::${repo.functions.length}`;
     const renderChanged = !sameSet(renderIdsRef.current, renderIds);
     const repoChanged = repoKeyRef.current !== repoKey;
     renderIdsRef.current = renderIds;
@@ -85,9 +96,10 @@ function FlowCanvasInner() {
       data: { fn, state: blockStates[fn.id] || { status: 'idle' } },
     }));
 
-    const filteredEdges = repo.edges
+    const allEdges = deriveEdges(repo);
+    const filteredEdges = allEdges
       .filter((e) => renderIds.has(e.source) && renderIds.has(e.target))
-      .slice(0, repo.functions.length > LARGE_GRAPH_THRESHOLD ? LARGE_GRAPH_EDGE_CAP : repo.edges.length);
+      .slice(0, repo.functions.length > LARGE_GRAPH_THRESHOLD ? LARGE_GRAPH_EDGE_CAP : allEdges.length);
 
     const nextEdges: Edge[] = styleEdges(filteredEdges, flowSet);
 
@@ -222,9 +234,11 @@ function selectRenderableNodeIds(repo: ParsedRepo, flowSet: Set<string>): Set<st
 
   const degree = new Map<string, number>();
   for (const fn of repo.functions) degree.set(fn.id, 0);
-  for (const edge of repo.edges) {
-    degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
-    degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
+  for (const fn of repo.functions) {
+    degree.set(fn.id, (degree.get(fn.id) || 0) + fn.calls.length);
+    for (const target of fn.calls) {
+      degree.set(target, (degree.get(target) || 0) + 1);
+    }
   }
 
   const scored = [...repo.functions].sort((a, b) => {

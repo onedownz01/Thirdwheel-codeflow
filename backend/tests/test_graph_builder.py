@@ -28,7 +28,7 @@ def test_graph_builder_resolves_calls_and_merges_intents():
         source_file='a.py',
         group='Actions',
         confidence=0.7,
-        evidence=[IntentEvidence(kind='ui_event', source_file='a.py', line=1, symbol='handle', excerpt='', weight=0.7)],
+        evidence=[IntentEvidence(kind='ui_event', weight=0.7)],
     )
     i2 = Intent(
         id='intent:2',
@@ -40,12 +40,12 @@ def test_graph_builder_resolves_calls_and_merges_intents():
         source_file='a.py',
         group='Actions',
         confidence=0.8,
-        evidence=[IntentEvidence(kind='form_action', source_file='a.py', line=2, symbol='handle', excerpt='', weight=0.8)],
+        evidence=[IntentEvidence(kind='form_action', weight=0.8)],
     )
 
     parsed = build_graph([f1, f2], [i1, i2], repo='demo/repo', branch='main')
 
     assert len(parsed.edges) == 1
-    assert parsed.functions[0].calls == ['a.py:do_work:2']
+    assert parsed.functions[0].calls == [parsed.functions[1].id]
     assert len(parsed.intents) == 1
     assert parsed.intents[0].status in {'observed', 'verified'}

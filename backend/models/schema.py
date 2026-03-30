@@ -51,10 +51,6 @@ class Param(BaseModel):
 
 class IntentEvidence(BaseModel):
     kind: EvidenceKind
-    source_file: str
-    line: int = 0
-    symbol: str = ""
-    excerpt: str = ""
     weight: float = 0.0
 
 
@@ -65,9 +61,9 @@ class ParsedFunction(BaseModel):
     type: FunctionType
     params: list[Param] = Field(default_factory=list)
     line: int = 0
-    description: str = ""
+    return_type: str = ""
+    docstring: str = ""
     calls: list[str] = Field(default_factory=list)
-    called_by: list[str] = Field(default_factory=list)
 
 
 class Intent(BaseModel):
@@ -84,7 +80,6 @@ class Intent(BaseModel):
     status: IntentStatus = IntentStatus.CANDIDATE
     confidence: float = 0.0
     evidence: list[IntentEvidence] = Field(default_factory=list)
-    aliases: list[str] = Field(default_factory=list)
     frequency: int = 0
     failure_rate: float = 0.0
 
@@ -105,6 +100,8 @@ class ParsedRepo(BaseModel):
     edges: list[Edge]
     file_count: int
     parsed_at: str
+    fn_type_index: dict[str, list[str]] = Field(default_factory=dict)
+    file_index: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class TraceEventType(str, Enum):
