@@ -5,6 +5,7 @@
 > **Passes:** Token Efficiency · Comprehension Quality · LLM Judge (Gemini 2.5 Flash)  
 > **Functions judged:** 70 (5/repo)  
 > **Tokenizer:** `cl100k_base` (tiktoken — GPT-4/Claude proxy ±5%)  
+> **Pass 1 refresh:** 2026-03-30 05:59 UTC (token metrics updated for `fastapi/full-stack-fastapi-template`, `encode/httpx`, `encode/starlette`)  
 
 ---
 
@@ -25,21 +26,21 @@ Key findings across all repos:
 
 | # | Repo | Cat | Raw Tokens | CF Tokens | Saved | Ratio | Regime |
 |---|------|:---:|:----------:|:---------:|:-----:|:-----:|--------|
-| 1 | `fastapi/full-stack-fastapi-template` | A | 75,035 | 31,286 | **58.3%** | 2.40× | High compression |
+| 1 | `fastapi/full-stack-fastapi-template` | A | 75,035 | 31,282 | **58.3%** | 2.40× | High compression |
 | 2 | `zauberzeug/nicegui` | A | 81,128 | 47,034 | **42.0%** | 1.72× | High compression |
 | 3 | `tiangolo/fastapi` | B | 31,506 | 33,527 | **-6.4%** | 0.94× | Near-parity |
 | 4 | `pallets/flask` | B | 135,633 | 114,082 | **15.9%** | 1.19× | Moderate compression |
-| 5 | `encode/starlette` | B | 141,009 | 135,492 | **3.9%** | 1.04× | Near-parity |
+| 5 | `encode/starlette` | B | 141,009 | 135,249 | **4.1%** | 1.04× | Near-parity |
 | 6 | `anthropics/anthropic-sdk-python` | C | 191,843 | 145,706 | **24.0%** | 1.32× | Moderate compression |
 | 7 | `openai/openai-python` | C | 183,840 | 181,780 | **1.1%** | 1.01× | Near-parity |
-| 8 | `encode/httpx` | C | 134,082 | 80,663 | **39.8%** | 1.66× | Moderate compression |
+| 8 | `encode/httpx` | C | 134,082 | 80,710 | **39.8%** | 1.66× | Moderate compression |
 | 9 | `psf/requests` | C | 85,992 | 58,957 | **31.4%** | 1.46× | Moderate compression |
 | 10 | `httpie/httpie` | D | 119,789 | 93,546 | **21.9%** | 1.28× | Moderate compression |
 | 11 | `pallets/click` | D | 166,675 | 126,972 | **23.8%** | 1.31× | Moderate compression |
 | 12 | `Textualize/rich` | E | 292,337 | 63,449 | **78.3%** | 4.61× | High compression |
 | 13 | `pydantic/pydantic` | E | 380,113 | 196,655 | **48.3%** | 1.93× | High compression |
 | 14 | `sqlalchemy/sqlalchemy` | E | 281,448 | 161,589 | **42.6%** | 1.74× | High compression |
-| | **TOTAL** | | **2,300,430** | **1,470,738** | **36.1%** | 1.56× | |
+| | **TOTAL** | | **2,300,430** | **1,470,538** | **36.1%** | 1.56× | |
 
 ### Token Visualisation
 ```
@@ -49,7 +50,7 @@ Key findings across all repos:
   zauberzeug/nicegui                            42.0%  ███████████░░░░░░░░░░░░░░
   tiangolo/fastapi                              -6.4%  ░░░░░░░░░░░░░░░░░░░░░░░░░░░
   pallets/flask                                 15.9%  ████░░░░░░░░░░░░░░░░░░░░░
-  encode/starlette                               3.9%  █░░░░░░░░░░░░░░░░░░░░░░░░
+  encode/starlette                               4.1%  █░░░░░░░░░░░░░░░░░░░░░░░░
   anthropics/anthropic-sdk-python               24.0%  ██████░░░░░░░░░░░░░░░░░░░
   openai/openai-python                           1.1%  ░░░░░░░░░░░░░░░░░░░░░░░░░
   encode/httpx                                  39.8%  ██████████░░░░░░░░░░░░░░░
@@ -143,7 +144,7 @@ For each repo, 5 functions are judged in 3 passes:
 | Intents | 44 (100% route recall) |
 | Docstrings captured | 52 (13% coverage) |
 | Raw tokens | 75,035 |
-| Codeflow tokens | 31,286 |
+| Codeflow tokens | 31,282 |
 | Token saving | **58.3%** (2.40×) |
 | fn_type_index | `{<FunctionType.OTHER: 'other'>: 92, <FunctionType.ROUTE: 'route'>: 21, <FunctionType.COMPONENT: 'component'>: 163, <FunctionType.HANDLER: 'handler'>: 42, <FunctionType.HOOK: 'hook'>: 3}` |
 | Parse time | 0.10s |
@@ -303,8 +304,8 @@ Description B is more precise and detailed, directly observing the `HTMLResponse
 | Intents | 341 (50% route recall) |
 | Docstrings captured | 70 (5% coverage) |
 | Raw tokens | 141,009 |
-| Codeflow tokens | 135,492 |
-| Token saving | **3.9%** (1.04×) |
+| Codeflow tokens | 135,249 |
+| Token saving | **4.1%** (1.04×) |
 | fn_type_index | `{<FunctionType.UTIL: 'util'>: 26, <FunctionType.OTHER: 'other'>: 1324, <FunctionType.AUTH: 'auth'>: 91, <FunctionType.HANDLER: 'handler'>: 29, <FunctionType.DB: 'db'>: 8}` |
 | Parse time | 0.23s |
 
@@ -446,7 +447,7 @@ Description B accurately captures the core mechanisms, including the use of `any
 | Intents | 158 (100% route recall) |
 | Docstrings captured | 225 (20% coverage) |
 | Raw tokens | 134,082 |
-| Codeflow tokens | 80,663 |
+| Codeflow tokens | 80,710 |
 | Token saving | **39.8%** (1.66×) |
 | fn_type_index | `{<FunctionType.OTHER: 'other'>: 932, <FunctionType.DB: 'db'>: 95, <FunctionType.AUTH: 'auth'>: 29, <FunctionType.HANDLER: 'handler'>: 9, <FunctionType.UTIL: 'util'>: 69}` |
 | Parse time | 0.14s |

@@ -87,6 +87,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 > Full results: [`benchmark/FINAL_BENCHMARK_REPORT.md`](benchmark/FINAL_BENCHMARK_REPORT.md)
 > Run: 2026-03-30 · 14 repos · 15,000+ functions · 70 judged · Judge model: Gemini 2.5 Flash
+> Pass 1 refresh (2026-03-30 05:59 UTC): updated token metrics for `fastapi/full-stack-fastapi-template`, `encode/httpx`, and `encode/starlette`.
 
 ### Setup
 
@@ -107,20 +108,20 @@ Gemini 2.5 Flash was selected as judge specifically to avoid circularity — Cla
 | Repo | Category | Raw | CF | Saved | ×  |
 |------|:--------:|----:|---:|:-----:|:--:|
 | `Textualize/rich` | Library | 292,337 | 63,449 | **78.3%** | 4.61× |
-| `fastapi/full-stack-fastapi-template` | App | 75,035 | 31,286 | **58.3%** | 2.40× |
+| `fastapi/full-stack-fastapi-template` | App | 75,035 | 31,282 | **58.3%** | 2.40× |
 | `pydantic/pydantic` | Library | 380,113 | 196,655 | **48.3%** | 1.93× |
 | `zauberzeug/nicegui` | App | 81,128 | 47,034 | **42.0%** | 1.72× |
 | `sqlalchemy/sqlalchemy` | Library | 281,448 | 161,589 | **42.6%** | 1.74× |
-| `encode/httpx` | SDK | 134,082 | 80,663 | **39.8%** | 1.66× |
+| `encode/httpx` | SDK | 134,082 | 80,710 | **39.8%** | 1.66× |
 | `psf/requests` | SDK | 85,992 | 58,957 | **31.4%** | 1.46× |
 | `anthropics/anthropic-sdk-python` | SDK | 191,843 | 145,706 | **24.0%** | 1.32× |
 | `pallets/click` | CLI | 166,675 | 126,972 | **23.8%** | 1.31× |
 | `httpie/httpie` | CLI | 119,789 | 93,546 | **21.9%** | 1.28× |
 | `pallets/flask` | Framework | 135,633 | 114,082 | **15.9%** | 1.19× |
-| `encode/starlette` | Framework | 141,009 | 135,492 | **3.9%** | 1.04× |
+| `encode/starlette` | Framework | 141,009 | 135,249 | **4.1%** | 1.04× |
 | `openai/openai-python` | SDK | 183,840 | 181,780 | **1.1%** | 1.01× |
 | `tiangolo/fastapi` | Framework | 31,506 | 33,527 | **-6.4%** | 0.94× |
-| **Total** | | **2,300,430** | **1,470,738** | **36.1%** | **1.56×** |
+| **Total** | | **2,300,430** | **1,470,538** | **36.1%** | **1.56×** |
 
 ```
   Textualize/rich                      78%  ████████████████████░░░░░
