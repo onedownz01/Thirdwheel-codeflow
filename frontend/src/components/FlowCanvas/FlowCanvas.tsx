@@ -206,7 +206,7 @@ function FlowCanvasInner() {
   );
 }
 
-function styleEdges(sourceEdges: ParsedRepo['edges'], flowSet: Set<string>): Edge[] {
+function styleEdges(sourceEdges: Edge[], flowSet: Set<string>): Edge[] {
   return sourceEdges.map((e) => {
     const active = flowSet.has(e.source) && flowSet.has(e.target);
     return {

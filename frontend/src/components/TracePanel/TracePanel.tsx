@@ -106,10 +106,10 @@ export function TracePanel() {
             </div>
           )}
 
-          {selectedFn.description && (
+          {selectedFn.docstring && (
             <div className="node-detail-section">
               <div className="node-detail-section-label">DESCRIPTION</div>
-              <div className="node-detail-desc">{selectedFn.description}</div>
+              <div className="node-detail-desc">{selectedFn.docstring}</div>
             </div>
           )}
         </div>
