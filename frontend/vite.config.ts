@@ -7,9 +7,6 @@ export default defineConfig({
     port: 5173,
     host: '127.0.0.1'
   },
-  optimizeDeps: {
-    exclude: ['elkjs'],
-  },
   build: {
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
