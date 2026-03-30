@@ -6,8 +6,7 @@ import type {
   TraceSession,
 } from '../types';
 import type { TraceHeaders } from './useTraceContext';
-
-const API_BASE = 'http://127.0.0.1:8001';
+import { API_BASE } from '../config/runtime';
 
 function printable(value: unknown): string {
   if (typeof value === 'string') return value;

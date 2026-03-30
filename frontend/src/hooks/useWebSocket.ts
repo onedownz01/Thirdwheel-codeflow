@@ -1,7 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useFlowStore } from '../store/flowStore';
-
-const WS_BASE = 'ws://127.0.0.1:8001';
+import { WS_BASE } from '../config/runtime';
 
 export function useTraceSocket() {
   const wsRef = useRef<WebSocket | null>(null);
