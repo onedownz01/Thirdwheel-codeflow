@@ -67,10 +67,12 @@ Open `http://localhost:5173`, paste a GitHub repo (e.g. `tiangolo/fastapi`), hit
 ## Environment Variables
 
 All optional. Codeflow runs fully offline in Sim mode.
+GitHub fetch automatically falls back to archive mode when REST API quota is exhausted.
 
 | Variable | Description |
 |----------|-------------|
-| `GITHUB_TOKEN` | GitHub PAT — raises rate limit from 60 → 5,000 req/hr |
+| `GITHUB_TOKEN` | GitHub PAT — auto-detected by fetcher; raises rate limit from 60 → 5,000 req/hr |
+| `CODEFLOW_GITHUB_FETCH_MODE` | Set to `archive` to force non-API tarball fetch mode (useful for deterministic benchmarks) |
 | `ANTHROPIC_API_KEY` | Enables AI fix suggestions (opt-in, never called automatically) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTel collector endpoint for real span ingestion |
 | `DATABASE_URL` | Postgres connection string for trace persistence |
