@@ -102,6 +102,8 @@ Gemini 2.5 Flash was selected as judge specifically to avoid circularity — Cla
 
 ### Pass 1 — Token Efficiency
 
+![Token Savings](benchmark/assets/token_savings.svg)
+
 | Repo | Category | Raw | CF | Saved | ×  |
 |------|:--------:|----:|---:|:-----:|:--:|
 | `Textualize/rich` | Library | 292,337 | 63,449 | **78.3%** | 4.61× |
@@ -156,6 +158,8 @@ Zero missed functions across 15,000+ ground-truth entries. Route recall varies b
 ---
 
 ### Pass 3 — Semantic Retention (LLM Judge)
+
+![Semantic Retention](benchmark/assets/retention.svg)
 
 | Repo | CF | Raw | Retention | Grade |
 |------|:--:|:---:|:---------:|:-----:|
