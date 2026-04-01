@@ -272,7 +272,7 @@ export default function LandingPage() {
                   marginBottom: 32,
                 }}>
                   <span style={{ color: C.text }}>◈</span>
-                  BENCHMARK — 14 REPOS · 15K+ FUNCTIONS
+                  BENCHMARK — 21 REPOS · 15K+ FUNCTIONS
                 </div>
 
                 <h1 style={{
