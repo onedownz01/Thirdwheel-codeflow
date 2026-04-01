@@ -73,7 +73,7 @@ const FEATURES = [
   { tag: 'OTEL',      title: 'Real spans from your service', body: 'Point your OTel exporter at Codeflow. Real timing, real errors, real return values.' },
   { tag: 'SETTRACE',  title: 'Attach to a local process',  body: 'sys.settrace hooks into Python. Every call and return captured. No code changes.' },
   { tag: 'AGENTS',    title: 'Structured output for agents', body: 'One JSON object: all functions, types, call edges, fn_type_index, file_index. 36% fewer tokens.' },
-  { tag: 'BENCHMARK', title: '14 repos, scored externally', body: 'Gemini 2.5 Flash judged 70 sampled functions. psf/requests: 90% retention. Avg: 69%.' },
+  { tag: 'BENCHMARK', title: '21 repos benchmarked',        body: '14 scored by Gemini 2.5 Flash. psf/requests: 90% retention. Avg: 69%. 36% token savings.' },
   { tag: 'MIT',       title: 'Self-host it',               body: 'No accounts. No telemetry in sim mode. The only network call is to GitHub.' },
 ];
 
@@ -369,7 +369,7 @@ export default function LandingPage() {
               { n: '36%',   l: 'avg token savings' },
               { n: '100%',  l: 'function recall' },
               { n: '69%',   l: 'semantic retention' },
-              { n: '14',    l: 'repos benchmarked' },
+              { n: '21',    l: 'repos benchmarked' },
             ].map(s => (
               <div key={s.n} style={{
                 background: C.bg, padding: '28px 24px', textAlign: 'center' as const,
@@ -493,7 +493,7 @@ export default function LandingPage() {
                   Measured. Not claimed.
                 </h2>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85, marginBottom: 16 }}>
-                  14 repos, 15,000+ functions. Each repo parsed into ParsedRepo and compared to
+                  21 repos, 15,000+ functions. Each repo parsed into ParsedRepo and compared to
                   raw source on three axes: token count, function recall, semantic retention.
                 </p>
                 <p style={{ fontSize: 14, fontWeight: 300, color: C.muted, lineHeight: 1.85 }}>

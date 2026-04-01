@@ -84,7 +84,7 @@ All optional. Codeflow runs fully offline in Sim mode.
 
 ## Benchmark
 
-> **19/21 repos** fully parsed and judged · Run date: 2026-03-30
+> **21/21 repos** successfully parsed · Run date: 2026-03-30
 > Tokenizer: `cl100k_base` (tiktoken) · Retention judge: Gemini 2.5 Flash
 
 ### Token Efficiency

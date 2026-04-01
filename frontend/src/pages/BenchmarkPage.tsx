@@ -136,7 +136,7 @@ export default function BenchmarkPage() {
           </p>
           <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' as const }}>
             {[
-              { label: '14 repos' },
+              { label: '21 repos' },
               { label: '15,000+ functions' },
               { label: '100% recall' },
               { label: 'Gemini 2.5 Flash judge' },
@@ -164,7 +164,7 @@ export default function BenchmarkPage() {
             { n: '100%',                   l: 'function recall',      sub: 'zero functions missed' },
             { n: `${avgRet}%`,             l: 'avg semantic retention', sub: 'scored by Gemini 2.5 Flash' },
             { n: `${fmt(BENCH.reduce((s,r)=>s+r.fns,0))}`,
-                                           l: 'total functions',      sub: 'across 14 repos' },
+                                           l: 'total functions',      sub: 'across 21 repos' },
           ].map(s => (
             <div key={s.n} style={{ background: GH.bg2, padding: '20px 16px' }}>
               <div style={{ ...mono, fontSize: 24, fontWeight: 600, color: GH.text }}>{s.n}</div>
@@ -265,7 +265,7 @@ export default function BenchmarkPage() {
           <p style={{ marginBottom: 12 }}>
             <strong style={{ color: GH.text }}>Recall.</strong> Every function in the raw AST checked against
             <code style={{ ...mono, fontSize: 12, background: GH.bg3, padding: '1px 5px', borderRadius: 3 }}> ParsedRepo.functions</code> by
-            qualified name. 100% across all 14 repos.
+            qualified name. 100% across all 21 repos.
           </p>
           <p>
             <strong style={{ color: GH.text }}>Retention.</strong> 5 functions sampled per repo (stratified by type).
